@@ -33,8 +33,13 @@ find_path(LOG4CXX_INCLUDE_DIR NAMES log4cxx/log4cxx.h ${LOG4CXX_INCLUDE_HINTS})
 find_library(LOG4CXX_LIBRARY NAMES log4cxx ${LOG4CXX_LIBRARY_HINTS})
 find_library(LOG4CXXD_LIBRARY NAMES log4cxx${CMAKE_DEBUG_POSTFIX} ${LOG4CXX_LIBRARY_HINTS})
 
-# Set LOG4CXX_FOUND honoring the QUIET and REQUIRED arguments
-find_package_handle_standard_args(LOG4CXX DEFAULT_MSG LOG4CXX_LIBRARY LOG4CXX_INCLUDE_DIR)
+# Set LOG4CXX_FOUND honoring the QUIET and REQUIRED arguments.
+# OCL calls find_package(Log4cxx), so suppress the legacy module name mismatch.
+find_package_handle_standard_args(LOG4CXX
+  REQUIRED_VARS
+    LOG4CXX_LIBRARY
+    LOG4CXX_INCLUDE_DIR
+  NAME_MISMATCHED)
 
 # Output variables
 if(LOG4CXX_FOUND)
