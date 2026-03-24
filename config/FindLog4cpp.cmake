@@ -32,9 +32,21 @@ IF (LOG4CPP_ROOT)
 ENDIF ()
 
 # Find headers and libraries
-find_path(LOG4CPP_INCLUDE_DIR NAMES log4cpp/Category.hh ${LOG4CPP_INCLUDE_HINTS})
-find_library(LOG4CPP_LIBRARY NAMES orocos-log4cpp ${LOG4CPP_LIBRARY_HINTS})
-find_library(LOG4CPPD_LIBRARY NAMES orocos-log4cpp${CMAKE_DEBUG_POSTFIX} ${LOG4CPP_LIBRARY_HINTS})
+if(LOG4CPP_ROOT)
+  find_path(LOG4CPP_INCLUDE_DIR NAMES log4cpp/Category.hh ${LOG4CPP_INCLUDE_HINTS} NO_DEFAULT_PATH)
+  find_library(LOG4CPP_LIBRARY NAMES orocos-log4cpp ${LOG4CPP_LIBRARY_HINTS} NO_DEFAULT_PATH)
+  find_library(LOG4CPPD_LIBRARY NAMES orocos-log4cpp${CMAKE_DEBUG_POSTFIX} ${LOG4CPP_LIBRARY_HINTS} NO_DEFAULT_PATH)
+endif()
+
+if(NOT LOG4CPP_INCLUDE_DIR)
+  find_path(LOG4CPP_INCLUDE_DIR NAMES log4cpp/Category.hh)
+endif()
+if(NOT LOG4CPP_LIBRARY)
+  find_library(LOG4CPP_LIBRARY NAMES orocos-log4cpp)
+endif()
+if(NOT LOG4CPPD_LIBRARY)
+  find_library(LOG4CPPD_LIBRARY NAMES orocos-log4cpp${CMAKE_DEBUG_POSTFIX})
+endif()
 
 # Set LOG4CPP_FOUND honoring the QUIET and REQUIRED arguments.
 # OCL calls find_package(Log4cpp), so suppress the legacy module name mismatch.
