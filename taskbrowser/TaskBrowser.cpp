@@ -105,7 +105,7 @@
 #  include <readline/history.h>
 # endif
 #endif
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/lambda/lambda.hpp>
 
 #ifdef USE_SIGNALS
@@ -129,6 +129,7 @@ namespace OCL
     using namespace std;
     using namespace RTT;
     using namespace RTT::detail;
+    using namespace boost::placeholders;
 #ifdef USE_READLINE
     std::vector<std::string> TaskBrowser::candidates;
     std::vector<std::string> TaskBrowser::completes;

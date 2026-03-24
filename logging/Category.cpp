@@ -73,10 +73,7 @@ std::string Category::convertName(const std::string& name)
 {
     std::string     rc(name);
 
-    std::replace_if(rc.begin(),
-                    rc.end(),
-                    std::bind2nd(std::equal_to<char>(), '.'),
-                    '_');
+    std::replace(rc.begin(), rc.end(), '.', '_');
 
     return rc;
 }

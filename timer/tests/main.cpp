@@ -1,4 +1,3 @@
-#include <boost/bind.hpp>
 #include <timer/TimerComponent.hpp>
 #include <taskbrowser/TaskBrowser.hpp>
 
@@ -77,4 +76,3 @@ int ORO_main( int argc, char** argv)
 
     return 0;
 }
-

@@ -108,6 +108,10 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/config")
 # This is the first in the include path.
 INCLUDE_DIRECTORIES( ${PROJ_SOURCE_DIR} ${PROJ_BINARY_DIR}/ocl )
 
+# RTT and older Boost-based code still rely on the legacy global placeholders.
+# Define this for OCL targets so indirect <boost/bind.hpp> includes stay quiet.
+add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
+
 INCLUDE(${PROJ_SOURCE_DIR}/config/TestUsesFile.cmake)
 
 #############################
