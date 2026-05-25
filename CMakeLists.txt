@@ -117,6 +117,7 @@ INCLUDE_DIRECTORIES( ${PROJ_SOURCE_DIR} ${PROJ_BINARY_DIR}/ocl )
 add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 
 INCLUDE(${PROJ_SOURCE_DIR}/config/TestUsesFile.cmake)
+INCLUDE(${PROJ_SOURCE_DIR}/config/TestMacros.cmake)
 
 #############################
 #                           #
