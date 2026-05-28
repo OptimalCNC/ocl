@@ -22,7 +22,7 @@ Category::~Category()
 }
 
 void Category::log(log4cpp::Priority::Value priority,
-                 const RTT::rt_string& message) throw()
+                 const RTT::rt_string& message) noexcept
 {
     if (isPriorityEnabled(priority))
     {
@@ -32,7 +32,7 @@ void Category::log(log4cpp::Priority::Value priority,
 
 
 void Category::_logUnconditionally2(log4cpp::Priority::Value priority,
-                                    const RTT::rt_string& message) throw()
+                                    const RTT::rt_string& message) noexcept
 {
     try
     {
@@ -49,7 +49,7 @@ void Category::_logUnconditionally2(log4cpp::Priority::Value priority,
     }
 }
 
-void Category::callAppenders(const OCL::logging::LoggingEvent& event) throw()
+void Category::callAppenders(const OCL::logging::LoggingEvent& event) noexcept
 {
     // only write if the port is connected
     if (log_port.connected())

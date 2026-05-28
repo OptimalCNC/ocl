@@ -31,16 +31,16 @@ public:
     // these replace std::string versions in the base class
 public:
     virtual void log(log4cpp::Priority::Value priority, 
-                     const RTT::rt_string& message) throw();
-    void debug(const RTT::rt_string& message) throw() { log(log4cpp::Priority::DEBUG, message); }
-    void info(const RTT::rt_string& message) throw() { log(log4cpp::Priority::INFO, message); }
-    void notice(const RTT::rt_string& message) throw() { log(log4cpp::Priority::NOTICE, message); }
-    void warn(const RTT::rt_string& message) throw() { log(log4cpp::Priority::WARN, message); }
-    void error(const RTT::rt_string& message) throw() { log(log4cpp::Priority::ERROR, message); }
-    void crit(const RTT::rt_string& message) throw() { log(log4cpp::Priority::CRIT, message); }
-    void alert(const RTT::rt_string& message) throw() { log(log4cpp::Priority::ALERT, message); }
-    void emerg(const RTT::rt_string& message) throw() { log(log4cpp::Priority::EMERG, message); }
-    void fatal(const RTT::rt_string& message) throw() { log(log4cpp::Priority::FATAL, message); }
+                     const RTT::rt_string& message) noexcept;
+    void debug(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::DEBUG, message); }
+    void info(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::INFO, message); }
+    void notice(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::NOTICE, message); }
+    void warn(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::WARN, message); }
+    void error(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::ERROR, message); }
+    void crit(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::CRIT, message); }
+    void alert(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::ALERT, message); }
+    void emerg(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::EMERG, message); }
+    void fatal(const RTT::rt_string& message) noexcept { log(log4cpp::Priority::FATAL, message); }
 
     /**
      * Returns a stream-like object into which you can log
@@ -50,7 +50,7 @@ public:
 
 protected:
     void _logUnconditionally2(log4cpp::Priority::Value priority, 
-                              const RTT::rt_string& message) throw();
+                              const RTT::rt_string& message) noexcept;
 
 
     // real-time - available to user
@@ -138,7 +138,7 @@ protected:
         \param event The event of interest
         \note Real-time capable for all attached OCL-configured appenders
     */
-    virtual void callAppenders(const OCL::logging::LoggingEvent& event) throw();
+    virtual void callAppenders(const OCL::logging::LoggingEvent& event) noexcept;
 
     /** Convert \a name into Orocos notation (e.g. "org.me.app" -> "org_me_app")
 
