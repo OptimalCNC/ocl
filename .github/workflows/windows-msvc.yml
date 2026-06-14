@@ -58,6 +58,7 @@ jobs:
             boost-filesystem:x64-windows `
             boost-serialization:x64-windows `
             boost-thread:x64-windows `
+            boost-uuid:x64-windows `
             boost-graph:x64-windows `
             boost-program-options:x64-windows `
             boost-test:x64-windows `
