@@ -42,7 +42,7 @@
 #endif
 #endif
 
-#if		defined(ORO_SUPPORT_CPU_AFFINITY)
+#if		!defined(_WIN32) || defined(ORO_SUPPORT_CPU_AFFINITY)
 #include <unistd.h>
 #endif
 
@@ -172,8 +172,15 @@ int deployerParseCmdLine(int                        argc,
 			if (vm.count("check"))
 				log(Warning) << "--check and --daemon are incompatible. Skipping the --daemon flag." <<endlog();
 			else
+#ifdef _WIN32
+			{
+				std::cout << "--daemon is not supported on native Windows." << std::endl;
+				return -2;
+			}
+#else
 				if (fork() != 0 )
 					return 1;
+#endif
 		}
 
 		if ( !(0 <= minNumberCPU) )
