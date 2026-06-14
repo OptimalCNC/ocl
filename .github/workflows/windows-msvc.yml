@@ -20,7 +20,7 @@ jobs:
 
     env:
       OROCOS_TARGET: win32
-      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+      CI_VCPKG_ROOT: ${{ github.workspace }}\vcpkg
       INSTALL_PREFIX: ${{ github.workspace }}\install-msvc
       RTT_BUILD_DIR: ${{ github.workspace }}\build-rtt-msvc
       OCL_BUILD_DIR: ${{ github.workspace }}\build-ocl-msvc
@@ -47,13 +47,13 @@ jobs:
       - name: Set up vcpkg
         shell: pwsh
         run: |
-          git clone https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
-          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+          git clone https://github.com/microsoft/vcpkg.git "$env:CI_VCPKG_ROOT"
+          & "$env:CI_VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
 
       - name: Install dependencies
         shell: pwsh
         run: |
-          & "$env:VCPKG_ROOT\vcpkg.exe" install `
+          & "$env:CI_VCPKG_ROOT\vcpkg.exe" install `
             boost-assign:x64-windows `
             boost-filesystem:x64-windows `
             boost-serialization:x64-windows `
@@ -67,7 +67,7 @@ jobs:
         shell: pwsh
         run: |
           cmake -S rtt -B "$env:RTT_BUILD_DIR" -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_TOOLCHAIN_FILE="$env:CI_VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
             -DCMAKE_INSTALL_PREFIX="$env:INSTALL_PREFIX" `
             -DOROCOS_TARGET=win32 `
             -DENABLE_CORBA=OFF `
@@ -90,8 +90,8 @@ jobs:
         shell: pwsh
         run: |
           cmake -S ocl -B "$env:OCL_BUILD_DIR" -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
-            -DCMAKE_PREFIX_PATH="$env:INSTALL_PREFIX;$env:VCPKG_ROOT\installed\x64-windows" `
+            -DCMAKE_TOOLCHAIN_FILE="$env:CI_VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_PREFIX_PATH="$env:INSTALL_PREFIX;$env:CI_VCPKG_ROOT\installed\x64-windows" `
             -DCMAKE_INSTALL_PREFIX="$env:INSTALL_PREFIX" `
             -DOROCOS_TARGET=win32 `
             -DENABLE_CORBA=OFF `
@@ -126,7 +126,7 @@ jobs:
             "$env:INSTALL_PREFIX\lib\orocos\win32\ocl\types",
             "$env:INSTALL_PREFIX\lib\orocos\win32\plugins",
             "$env:INSTALL_PREFIX\lib\orocos\win32\types",
-            "$env:VCPKG_ROOT\installed\x64-windows\bin"
+            "$env:CI_VCPKG_ROOT\installed\x64-windows\bin"
           )
           $env:PATH = ($paths -join ";") + ";" + $env:PATH
           $env:RTT_COMPONENT_PATH = "$env:INSTALL_PREFIX\lib\orocos\win32\ocl;$env:INSTALL_PREFIX\lib\orocos\win32\ocl\plugins;$env:INSTALL_PREFIX\lib\orocos\win32\plugins"
