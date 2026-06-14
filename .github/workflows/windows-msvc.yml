@@ -1,0 +1,141 @@
+name: Windows MSVC
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+      - windows-msvc-ocl
+  workflow_dispatch:
+    inputs:
+      rtt_ref:
+        description: RTT branch, tag, or SHA to build against
+        required: false
+        default: windows-msvc-rtt
+
+jobs:
+  build:
+    name: OCL win32 deployer
+    runs-on: windows-2022
+
+    env:
+      OROCOS_TARGET: win32
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+      INSTALL_PREFIX: ${{ github.workspace }}\install-msvc
+      RTT_BUILD_DIR: ${{ github.workspace }}\build-rtt-msvc
+      OCL_BUILD_DIR: ${{ github.workspace }}\build-ocl-msvc
+      RTT_REF: ${{ github.event.inputs.rtt_ref || 'windows-msvc-rtt' }}
+
+    steps:
+      - name: Check out OCL
+        uses: actions/checkout@v6
+        with:
+          path: ocl
+
+      - name: Check out RTT
+        uses: actions/checkout@v6
+        with:
+          repository: liufang-robot/rtt
+          ref: ${{ env.RTT_REF }}
+          path: rtt
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Set up vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" install `
+            boost-assign:x64-windows `
+            boost-filesystem:x64-windows `
+            boost-serialization:x64-windows `
+            boost-thread:x64-windows `
+            boost-graph:x64-windows `
+            boost-program-options:x64-windows `
+            boost-test:x64-windows `
+            libxml2:x64-windows
+
+      - name: Configure RTT
+        shell: pwsh
+        run: |
+          cmake -S rtt -B "$env:RTT_BUILD_DIR" -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_INSTALL_PREFIX="$env:INSTALL_PREFIX" `
+            -DOROCOS_TARGET=win32 `
+            -DENABLE_CORBA=OFF `
+            -DENABLE_TESTS=OFF `
+            -DBUILD_TESTING=OFF `
+            -DBUILD_DOCS=OFF `
+            -DOROBLD_FORCE_TINY_DEMARSHALLER=ON `
+            -DPLUGINS_ENABLE=ON `
+            -DPLUGINS_ENABLE_MARSHALLING=ON `
+            -DPLUGINS_ENABLE_TYPEKIT=ON `
+            -DPLUGINS_ENABLE_SCRIPTING=ON `
+            -DORO_OS_USE_BOOST_THREAD=ON `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Install RTT
+        shell: pwsh
+        run: cmake --build "$env:RTT_BUILD_DIR" --config Release --target INSTALL -- /m:4
+
+      - name: Configure OCL
+        shell: pwsh
+        run: |
+          cmake -S ocl -B "$env:OCL_BUILD_DIR" -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_PREFIX_PATH="$env:INSTALL_PREFIX;$env:VCPKG_ROOT\installed\x64-windows" `
+            -DCMAKE_INSTALL_PREFIX="$env:INSTALL_PREFIX" `
+            -DOROCOS_TARGET=win32 `
+            -DENABLE_CORBA=OFF `
+            -DBUILD_TESTING=OFF `
+            -DBUILD_TESTS=OFF `
+            -DBUILD_DOCS=OFF `
+            -DBUILD_TASKBROWSER=ON `
+            -DBUILD_DEPLOYMENT=ON `
+            -DBUILD_REPORTING=ON `
+            -DBUILD_REPORTING_NETCDF=OFF `
+            -DBUILD_LUA_RTT=OFF `
+            -DBUILD_TIMER=ON `
+            -DBUILD_LOGGING=OFF `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build OCL deployer tools
+        shell: pwsh
+        run: cmake --build "$env:OCL_BUILD_DIR" --config Release --target deployer rttscript -- /m:4
+
+      - name: Install OCL
+        shell: pwsh
+        run: cmake --build "$env:OCL_BUILD_DIR" --config Release --target INSTALL -- /m:4
+
+      - name: Smoke-test deployer tools
+        shell: pwsh
+        run: |
+          $paths = @(
+            "$env:INSTALL_PREFIX\bin",
+            "$env:INSTALL_PREFIX\lib",
+            "$env:INSTALL_PREFIX\lib\orocos\win32\ocl",
+            "$env:INSTALL_PREFIX\lib\orocos\win32\ocl\plugins",
+            "$env:INSTALL_PREFIX\lib\orocos\win32\ocl\types",
+            "$env:INSTALL_PREFIX\lib\orocos\win32\plugins",
+            "$env:INSTALL_PREFIX\lib\orocos\win32\types",
+            "$env:VCPKG_ROOT\installed\x64-windows\bin"
+          )
+          $env:PATH = ($paths -join ";") + ";" + $env:PATH
+          $env:RTT_COMPONENT_PATH = "$env:INSTALL_PREFIX\lib\orocos\win32\ocl;$env:INSTALL_PREFIX\lib\orocos\win32\ocl\plugins;$env:INSTALL_PREFIX\lib\orocos\win32\plugins"
+
+          deployer-win32.exe --version
+          if ($LASTEXITCODE -ne 1) { throw "deployer --version returned $LASTEXITCODE" }
+
+          deployer-win32.exe --check --no-consolelog
+          if ($LASTEXITCODE -ne 0) { throw "deployer --check returned $LASTEXITCODE" }
+
+          rttscript-win32.exe --check --no-consolelog
+          if ($LASTEXITCODE -ne 0) { throw "rttscript --check returned $LASTEXITCODE" }
