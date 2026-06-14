@@ -287,11 +287,16 @@ namespace OCL
     }
 
     bool DeploymentComponent::waitForInterrupt() {
+#ifdef USE_SIGNALS
         int sigs[] = { SIGINT, SIGTERM, SIGHUP };
         if ( !waitForSignals(sigs, 3) )
     		return false;
     	cout << "DeploymentComponent: Got interrupt !" <<endl;
     	return true;
+#else
+        cout << "DeploymentComponent: Failed to install interrupt handlers: Not supported by this Operating System. "<<endl;
+        return false;
+#endif
     }
 
     bool DeploymentComponent::waitForSignal(int sig) {
@@ -333,7 +338,8 @@ namespace OCL
         }
         return true;
 #else
-        cout << "DeploymentComponent: Failed to install signal handler for signal " << sig << ": Not supported by this Operating System. "<<endl;
+        int first_signal = sig_count ? sigs[0] : 0;
+        cout << "DeploymentComponent: Failed to install signal handler for signal " << first_signal << ": Not supported by this Operating System. "<<endl;
         return false;
 #endif
     }

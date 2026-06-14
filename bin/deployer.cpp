@@ -46,6 +46,12 @@
 #include <string>
 #include "deployer-funcs.hpp"
 
+#ifdef _WIN32
+#include <io.h>
+#define isatty _isatty
+#define fileno _fileno
+#endif
+
 #ifdef  ORO_BUILD_LOGGING
 #   ifndef OS_RT_MALLOC
 #   warning "Logging needs rtalloc!"
