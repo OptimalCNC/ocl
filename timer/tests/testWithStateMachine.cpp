@@ -37,7 +37,7 @@ public:
     {
         bool 				rc = false;		// prove otherwise
         scripting::StateMachinePtr 	p;
-        shared_ptr<Scripting> scripting = getProvider<Scripting>("scripting");
+        boost::shared_ptr<Scripting> scripting = getProvider<Scripting>("scripting");
         if (!scripting)
             return false;
         Logger::In			in(getName());
@@ -122,4 +122,3 @@ int ORO_main( int argc, char** argv)
 
     return 0;
 }
-
