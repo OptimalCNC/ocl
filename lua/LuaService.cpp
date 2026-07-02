@@ -37,9 +37,9 @@ namespace OCL {
 #if LUA_RTT_TLSF
     tlsf_inf = new lua_tlsf_info;
     if(tlsf_rtt_init_mp(tlsf_inf, TLSF_INITIAL_POOLSIZE)) {
-      Logger::log(Logger::Error) << "LuaService (TLSF)'"
-               << this->getOwner()->getName() << ": failed to create tlsf pool ("
-               << std::hex << TLSF_INITIAL_POOLSIZE << "bytes)" << endlog();
+      Logger::log().logf(Logger::Error, "LuaService",
+                         "LuaService (TLSF)'%s': failed to create tlsf pool (0x%x bytes)",
+                         this->getOwner()->getName().c_str(), static_cast<unsigned>(TLSF_INITIAL_POOLSIZE));
       throw;
     }
 
@@ -52,8 +52,9 @@ namespace OCL {
 #endif
 
     if (L == NULL) {
-      Logger::log(Logger::Error) << "LuaService ctr '" << this->getOwner()->getName() << "': "
-               << "cannot create state: not enough memory" << endlog();
+      Logger::log().logf(Logger::Error, "LuaService",
+                         "LuaService ctr '%s': cannot create state: not enough memory",
+                         this->getOwner()->getName().c_str());
       throw;
     }
 
@@ -106,8 +107,10 @@ namespace OCL {
   {
     os::MutexLock lock(m);
     if (luaL_dofile(L, file.c_str())) {
-      Logger::log(Logger::Error) << "LuaService '" << this->getOwner()->getName()
-               << "': " << lua_tostring(L, -1) << endlog();
+      const char* lua_error = lua_tostring(L, -1);
+      Logger::log().logf(Logger::Error, "LuaService",
+                         "LuaService '%s': %s",
+                         this->getOwner()->getName().c_str(), lua_error ? lua_error : "<no Lua error>");
       return false;
     }
     return true;
@@ -117,8 +120,10 @@ namespace OCL {
   {
     os::MutexLock lock(m);
     if (luaL_dostring(L, str.c_str())) {
-      Logger::log(Logger::Error) << "LuaService '" << this->getOwner()->getName()
-               << "': " << lua_tostring(L, -1) << endlog();
+      const char* lua_error = lua_tostring(L, -1);
+      Logger::log().logf(Logger::Error, "LuaService",
+                         "LuaService '%s': %s",
+                         this->getOwner()->getName().c_str(), lua_error ? lua_error : "<no Lua error>");
       return false;
     }
     return true;

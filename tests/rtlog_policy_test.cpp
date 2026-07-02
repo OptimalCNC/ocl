@@ -100,7 +100,10 @@ int main()
         "bin/deployer.cpp",
         "bin/cdeployer.cpp",
         "bin/deployer-corba.cpp",
-        "bin/deployer-funcs.cpp"
+        "bin/deployer-funcs.cpp",
+        "lua/rttlua.cpp",
+        "lua/LuaComponent.cpp",
+        "lua/LuaService.cpp"
     };
 
     std::vector<std::string> violations;

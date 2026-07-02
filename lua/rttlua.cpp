@@ -156,15 +156,17 @@ int ORO_main(int argc, char** argv)
       TaskContextServer::ThreadOrb();
     }
     catch( CORBA::Exception &e ) {
-      log(Error) << argv[0] <<" ORO_main : CORBA exception raised!" << Logger::nl;
-      log() << CORBA_EXCEPTION_INFO(e) << endlog();
+      Logger::log().logf(Logger::Error, "rttlua",
+                         "%s ORO_main : CORBA exception raised!", argv[0]);
+      Logger::log().logf(Logger::Error, "rttlua",
+                         "%s", CORBA_EXCEPTION_INFO(e));
       if(dc)
       {
         delete dc;
         dc = 0;
       }
     } catch (...) {
-      log(Error) << "Uncaught exception." << endlog();
+      Logger::log().logf(Logger::Error, "rttlua", "Uncaught exception.");
       if(dc)
       {
         delete dc;

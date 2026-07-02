@@ -60,8 +60,9 @@ namespace OCL
 #if LUA_RTT_TLSF
     tlsf_inf = new lua_tlsf_info;
     if(tlsf_rtt_init_mp(tlsf_inf, TLSF_INITIAL_POOLSIZE)) {
-      Logger::log(Logger::Error) << "LuaComponent '" << name << ": failed to create tlsf pool ("
-               << std::hex << TLSF_INITIAL_POOLSIZE << "bytes)" << endlog();
+      Logger::log().logf(Logger::Error, "LuaComponent",
+                         "LuaComponent '%s': failed to create tlsf pool (0x%x bytes)",
+                         name.c_str(), static_cast<unsigned>(TLSF_INITIAL_POOLSIZE));
       throw;
     }
 
@@ -73,8 +74,9 @@ namespace OCL
     L = luaL_newstate();
 #endif
     if (L == NULL) {
-      Logger::log(Logger::Error) << "LuaComponent '" << name
-               << "': failed to allocate memory for Lua state" << endlog();
+      Logger::log().logf(Logger::Error, "LuaComponent",
+                         "LuaComponent '%s': failed to allocate memory for Lua state",
+                         name.c_str());
       throw;
     }
 
@@ -128,7 +130,10 @@ namespace OCL
   {
     os::MutexLock lock(m);
     if (luaL_dofile(L, file.c_str())) {
-      Logger::log(Logger::Error) << "LuaComponent '" << this->getName() << "': " << lua_tostring(L, -1) << endlog();
+      const char* lua_error = lua_tostring(L, -1);
+      Logger::log().logf(Logger::Error, "LuaComponent",
+                         "LuaComponent '%s': %s",
+                         this->getName().c_str(), lua_error ? lua_error : "<no Lua error>");
       return false;
     }
     return true;
@@ -138,7 +143,10 @@ namespace OCL
   {
     os::MutexLock lock(m);
     if (luaL_dostring(L, str.c_str())) {
-      Logger::log(Logger::Error) << "LuaComponent '" << this->getName() << "': " << lua_tostring(L, -1) << endlog();
+      const char* lua_error = lua_tostring(L, -1);
+      Logger::log().logf(Logger::Error, "LuaComponent",
+                         "LuaComponent '%s': %s",
+                         this->getName().c_str(), lua_error ? lua_error : "<no Lua error>");
       return false;
     }
     return true;
