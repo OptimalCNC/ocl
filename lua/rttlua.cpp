@@ -41,14 +41,6 @@
 #include <rtt/os/main.h>
 #include <rtt/RTT.hpp>
 #include <rtt/Logger.hpp>
-#ifdef  ORO_BUILD_LOGGING
-#   ifndef OS_RT_MALLOC
-#   warning "Logging needs rtalloc!"
-#   endif
-#include <log4cpp/HierarchyMaintainer.hh>
-#include "logging/Category.hpp"
-#endif
-
 extern "C" {
 #include "lua-repl.h"
 void dotty (lua_State *L);
@@ -117,11 +109,6 @@ int ORO_main(int argc, char** argv)
                   << memSize << " allocated." << endl;
     }
 #endif  // ORO_BUILD_RTALLOC
-
-#ifdef  ORO_BUILD_LOGGING
-    log4cpp::HierarchyMaintainer::set_category_factory(
-        OCL::logging::Category::createOCLCategory);
-#endif
 
   LuaComponent lua("lua");
   DeploymentComponent * dc = 0;
@@ -204,11 +191,6 @@ int ORO_main(int argc, char** argv)
 #endif
 
   delete dc;
-
-#ifdef  ORO_BUILD_LOGGING
-    log4cpp::HierarchyMaintainer::getDefaultMaintainer().shutdown();
-    log4cpp::HierarchyMaintainer::getDefaultMaintainer().deleteAllCategories();
-#endif
 
 #ifdef  ORO_BUILD_RTALLOC
     if (0 != rtMem)

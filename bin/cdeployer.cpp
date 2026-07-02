@@ -40,14 +40,6 @@
 #include <string>
 #include "deployer-funcs.hpp"
 
-#ifdef  ORO_BUILD_LOGGING
-#   ifndef OS_RT_MALLOC
-#   warning "Logging needs rtalloc!"
-#   endif
-#include <log4cpp/HierarchyMaintainer.hh>
-#include "logging/Category.hpp"
-#endif
-
 using namespace RTT;
 using namespace RTT::corba;
 namespace po = boost::program_options;
@@ -115,23 +107,12 @@ int main(int argc, char** argv)
     }
 #endif  // ORO_BUILD_RTALLOC
 
-#ifdef  ORO_BUILD_LOGGING
-    // use our log4cpp-derived categories to do real-time logging
-    log4cpp::HierarchyMaintainer::set_category_factory(
-        OCL::logging::Category::createOCLCategory);
-#endif
-
     /******************** WARNING ***********************
      *   NO log(...) statements before __os_init() !!!!! 
      ***************************************************/
 
-    // start Orocos _AFTER_ setting up log4cpp
 	if (0 == __os_init(argc - optIndex, &argv[optIndex]))
     {
-#ifdef  ORO_BUILD_LOGGING
-        Logger::log().logf(Logger::Info, "CDeployer",
-                           "OCL factory set for real-time logging");
-#endif
         rc = -1;     // prove otherwise
         try {
             // if TAO options not found then have TAO process just the program name,
@@ -227,11 +208,6 @@ int main(int argc, char** argv)
         std::cerr << "Unable to start Orocos" << std::endl;
         rc = -1;
     }
-
-#ifdef  ORO_BUILD_LOGGING
-    log4cpp::HierarchyMaintainer::getDefaultMaintainer().shutdown();
-    log4cpp::HierarchyMaintainer::getDefaultMaintainer().deleteAllCategories();
-#endif
 
 #ifdef  ORO_BUILD_RTALLOC
     memoryPool.shutdown();
