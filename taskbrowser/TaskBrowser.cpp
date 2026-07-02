@@ -910,7 +910,7 @@ namespace OCL
                 } catch(std::exception& e) {
                     cerr << "The command line reader throwed a std::exception: '"<< e.what()<<"'."<<endl;
                 } catch (...) {
-                    cerr << "The command line reader throwed an exception." <<endlog();
+                    cerr << "The command line reader throwed an exception." << endl;
                 }
                 str_trim( command, ' ');
                 cout << coloroff;
@@ -979,31 +979,37 @@ namespace OCL
     void TaskBrowser::enterTask()
     {
         if ( context == taskcontext ) {
-            log(Info) <<"Already in Task "<< taskcontext->getName()<<endlog();
+            Logger::log().logf(Logger::Info, "TaskBrowser",
+                               "Already in Task %s", taskcontext->getName().c_str());
             return;
         }
         context = taskcontext;
-        log(Info) <<"Entering Task "<< taskcontext->getName()<<endlog();
+        Logger::log().logf(Logger::Info, "TaskBrowser",
+                           "Entering Task %s", taskcontext->getName().c_str());
     }
 
     void TaskBrowser::leaveTask()
     {
         if ( context == tb ) {
-            log(Info) <<"Already watching Task "<< taskcontext->getName()<<endlog();
+            Logger::log().logf(Logger::Info, "TaskBrowser",
+                               "Already watching Task %s", taskcontext->getName().c_str());
             return;
         }
         context = tb;
-        log(Info) <<"Watching Task "<< taskcontext->getName()<<endlog();
+        Logger::log().logf(Logger::Info, "TaskBrowser",
+                           "Watching Task %s", taskcontext->getName().c_str());
     }
 
     void TaskBrowser::recordMacro(std::string name)
     {
         if (macrorecording) {
-            log(Error)<< "Macro already active." <<endlog();
+            Logger::log().logf(Logger::Error, "TaskBrowser",
+                               "Macro already active.");
             return;
         }
         if (context->provides()->hasService("scripting") == false) {
-            log(Error)<< "Can not create a macro in a TaskContext without scripting service." <<endlog();
+            Logger::log().logf(Logger::Error, "TaskBrowser",
+                               "Can not create a macro in a TaskContext without scripting service.");
             return;
         }
         if ( name.empty() ) {
@@ -1020,7 +1026,8 @@ namespace OCL
 
     void TaskBrowser::cancelMacro() {
         if (!macrorecording) {
-            log(Warning)<< "Macro recording was not active." <<endlog();
+            Logger::log().logf(Logger::Warning, "TaskBrowser",
+                               "Macro recording was not active.");
             return;
         }
         cout << "Canceling macro "<< macroname <<endl;
@@ -1030,7 +1037,8 @@ namespace OCL
 
     void TaskBrowser::endMacro() {
         if (!macrorecording) {
-            log(Warning)<< "Macro recording was not active." <<endlog();
+            Logger::log().logf(Logger::Warning, "TaskBrowser",
+                               "Macro recording was not active.");
             return;
         }
         string fname = macroname + ".ops";
@@ -1202,7 +1210,8 @@ namespace OCL
         }
         catch( ... )
             {
-                log(Debug) <<"No such peer : "<< c <<endlog();
+                Logger::log().logf(Logger::Debug, "TaskBrowser",
+                                   "No such peer : %s", c.c_str());
                 return 0;
             }
         taskobject = pp.taskObject();
@@ -1218,7 +1227,8 @@ namespace OCL
 
         if ( instr == "list" ) {
             if (context->provides()->hasService("scripting") == false) {
-                log(Error)<< "Can not list a program in a TaskContext without scripting service." <<endlog();
+                Logger::log().logf(Logger::Error, "TaskBrowser",
+                                   "Can not list a program in a TaskContext without scripting service.");
                 return;
             }
             int line;
@@ -1252,7 +1262,8 @@ namespace OCL
         //
         if ( instr == "trace") {
             if (context->provides()->hasService("scripting") == false) {
-                log(Error)<< "Can not trace a program in a TaskContext without scripting service." <<endlog();
+                Logger::log().logf(Logger::Error, "TaskBrowser",
+                                   "Can not trace a program in a TaskContext without scripting service.");
                 return;
             }
 
@@ -1297,7 +1308,8 @@ namespace OCL
 
         if ( instr == "untrace") {
             if (context->provides()->hasService("scripting") == false) {
-                log(Error)<< "Can not untrace a program in a TaskContext without scripting service." <<endlog();
+                Logger::log().logf(Logger::Error, "TaskBrowser",
+                                   "Can not untrace a program in a TaskContext without scripting service.");
                 return;
             }
             string arg;
@@ -2115,7 +2127,7 @@ namespace OCL
         }
 
         if ( !peer || !peer->ready()) {
-            cout << nl << " Connection to peer "+peerp+" lost (peer->ready() == false)." <<endlog();
+            cout << nl << " Connection to peer " + peerp + " lost (peer->ready() == false)." << endl;
             return;
         }
 
