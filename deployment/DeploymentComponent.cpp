@@ -1481,12 +1481,19 @@ namespace OCL
                 // two ports later on, so we skip this connection for now.
                 if (skipUnconnected)
                 {
-                    log(Info) << "Skipping connection with name "<<connection_name<<" with only one Port "<<portname<<" from "<< owner << endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::createDataPortConnections",
+                                       "Skipping connection with name %s with only one Port %s from %s",
+                                       connection_name.c_str(), portname.c_str(), owner.c_str());
                 }
                 else if ( connection->ports.front()->createStream( connection->policy ) == false) {
-                    log(Warning) << "Creating stream with name "<<connection_name<<" with Port "<<portname<<" from "<< owner << " failed."<< endlog();
+                    Logger::log().logf(Logger::Warning, "DeploymentComponent::createDataPortConnections",
+                                       "Creating stream with name %s with Port %s from %s failed.",
+                                       connection_name.c_str(), portname.c_str(), owner.c_str());
                 } else {
-                    log(Info) << "Component "<< owner << "'s " + porttype<< " " + portname << " will stream to "<< connection->policy.name_id << endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::createDataPortConnections",
+                                       "Component %s's %s %s will stream to %s",
+                                       owner.c_str(), porttype.c_str(), portname.c_str(),
+                                       connection->policy.name_id.c_str());
                 }
                 continue;
             }
@@ -1499,19 +1506,24 @@ namespace OCL
             while (p !=connection->ports.end() ) {
                 if ( OutputPortInterface* out = dynamic_cast<base::OutputPortInterface*>( *p ) ) {
                     if ( writer ) {
-                        log(Info) << "Forming multi-output connections with additional OutputPort " << (*p)->getName() << "."<<endlog();
+                        Logger::log().logf(Logger::Info, "DeploymentComponent::createDataPortConnections",
+                                           "Forming multi-output connections with additional OutputPort %s.",
+                                           (*p)->getName().c_str());
                     } else
                     writer = *p;
                     writers.push_back( out );
                     std::string owner = it->second.owners[p - it->second.ports.begin()]->getName();
-                    log(Info) << "Component "<< owner << "'s OutputPort "<< writer->getName()<< " will write topic "<<it->first<< endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::createDataPortConnections",
+                                       "Component %s's OutputPort %s will write topic %s",
+                                       owner.c_str(), writer->getName().c_str(), it->first.c_str());
                 }
                 ++p;
             }
 
             // Inform the user of non-optimal connections:
             if ( writer == 0 ) {
-                log(Error) << "No OutputPort listed that writes " << it->first << endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::createDataPortConnections",
+                                   "No OutputPort listed that writes %s", it->first.c_str());
                 valid = false;
                 break;
             }
@@ -1529,10 +1541,16 @@ namespace OCL
                         // only try to connect p if it is not in the same connection of writer.
                         // OK. p is definately no part of writer's connection. Try to connect and flag errors if it fails.
                         if ( (*w)->connectTo( *p, connection->policy ) == false) {
-                            log(Error) << "Could not subscribe InputPort "<< owner<<"."<< (*p)->getName() << " to topic " << (*w)->getName() <<'/'<< connection_name <<endlog();
+                            Logger::log().logf(Logger::Error, "DeploymentComponent::createDataPortConnections",
+                                               "Could not subscribe InputPort %s.%s to topic %s/%s",
+                                               owner.c_str(), (*p)->getName().c_str(),
+                                               (*w)->getName().c_str(), connection_name.c_str());
                             valid = false;
                         } else {
-                            log(Info) << "Subscribed InputPort "<< owner<<"."<< (*p)->getName() <<" to topic " << (*w)->getName() <<'/'<< connection_name <<endlog();
+                            Logger::log().logf(Logger::Info, "DeploymentComponent::createDataPortConnections",
+                                               "Subscribed InputPort %s.%s to topic %s/%s",
+                                               owner.c_str(), (*p)->getName().c_str(),
+                                               (*w)->getName().c_str(), connection_name.c_str());
                         }
                     }
                     ++p;
