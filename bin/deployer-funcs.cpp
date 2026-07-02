@@ -162,7 +162,8 @@ int deployerParseCmdLine(int                        argc,
 		if (vm.count("daemon"))
 		{
 			if (vm.count("check"))
-				log(Warning) << "--check and --daemon are incompatible. Skipping the --daemon flag." <<endlog();
+				Logger::log().logf(Logger::Warning, "deployerParseCmdLine",
+				                   "--check and --daemon are incompatible. Skipping the --daemon flag.");
 			else
 #ifdef _WIN32
 			{
@@ -187,19 +188,22 @@ int deployerParseCmdLine(int                        argc,
 		if (vm.count("no-consolelog"))
 		{
 			RTT::Logger::Instance()->mayLogStdOut(false);
-			log(Info) << "Console logging disabled" << endlog();
+			Logger::log().logf(Logger::Info, "deployerParseCmdLine",
+			                   "Console logging disabled");
 		}
 
 		if (vm.count("check"))
 		{
 			deploymentOnlyChecked = true;
-			log(Info) << "Deployment check: Only check component loading, connecting peers and ports. Returns 255 in case of errors." << endlog();
+			Logger::log().logf(Logger::Info, "deployerParseCmdLine",
+			                   "Deployment check: Only check component loading, connecting peers and ports. Returns 255 in case of errors.");
 		}
 
 		if (vm.count("require-name-service"))
 		{
 			requireNameService = true;
-			log(Info) << "CORBA name service required." << endlog();
+			Logger::log().logf(Logger::Info, "deployerParseCmdLine",
+			                   "CORBA name service required.");
 		}
 
  		// verify that is a valid logging level

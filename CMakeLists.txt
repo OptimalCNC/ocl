@@ -119,6 +119,10 @@ add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 INCLUDE(${PROJ_SOURCE_DIR}/config/TestUsesFile.cmake)
 INCLUDE(${PROJ_SOURCE_DIR}/config/TestMacros.cmake)
 
+IF(BUILD_TESTING)
+  ADD_SUBDIRECTORY( tests )
+ENDIF(BUILD_TESTING)
+
 #############################
 #                           #
 # Building Documentation    #

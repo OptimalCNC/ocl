@@ -1,0 +1,2 @@
+add_executable(ocl_rtlog_policy_test rtlog_policy_test.cpp)
+add_test(NAME ocl_rtlog_policy_test COMMAND ocl_rtlog_policy_test)

@@ -134,7 +134,8 @@ int main(int argc, char** argv)
 	if (0 == __os_init(argc - optIndex, &argv[optIndex]))
     {
 #ifdef  ORO_BUILD_LOGGING
-        log(Info) << "OCL factory set for real-time logging" << endlog();
+        Logger::log().logf(Logger::Info, "Deployer",
+                           "OCL factory set for real-time logging");
 #endif
         rc = -1;     // prove otherwise
         // scope to force dc destruction prior to memory free
@@ -163,9 +164,11 @@ int main(int argc, char** argv)
                             if (!dc.kickStart2( (*iter), false, loadOk, configureOk, startOk )) {
                                 result = false;
                                 if (!loadOk) {
-                                    log(Error) << "Failed to load file: '"<< (*iter) <<"'." << endlog();
+                                    Logger::log().logf(Logger::Error, "Deployer",
+                                                       "Failed to load file: '%s'.", iter->c_str());
                                 } else if (!configureOk) {
-                                    log(Error) << "Failed to configure file: '"<< (*iter) <<"'." << endlog();
+                                    Logger::log().logf(Logger::Error, "Deployer",
+                                                       "Failed to configure file: '%s'.", iter->c_str());
                                 }
                                 (void)startOk;      // unused - avoid compiler warning
                             }
@@ -183,7 +186,9 @@ int main(int argc, char** argv)
                         continue;
                     }
 
-                    log(Error) << "Unknown extension of file: '"<< (*iter) <<"'. Must be xml, cpf for XML files or, ops, osd or lua for script files."<<endlog();
+                    Logger::log().logf(Logger::Error, "Deployer",
+                                       "Unknown extension of file: '%s'. Must be xml, cpf for XML files or, ops, osd or lua for script files.",
+                                       iter->c_str());
                 }
             }
             rc = (result ? 0 : -1);
