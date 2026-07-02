@@ -39,17 +39,18 @@ bool RollingFileAppender::configureHook()
     int m = maxEventsPerCycle_prop.rvalue();
     if ((0 > m))
     {
-        log(Error) << "Invalid maxEventsPerCycle value of " 
-                   << m << ". Value must be >= 0."
-                   << endlog();
+        Logger::log().logf(Logger::Error, "RollingFileAppender::configureHook",
+                           "Invalid maxEventsPerCycle value of %d. Value must be >= 0.",
+                           m);
         return false;
     }
     maxEventsPerCycle = m;
 
     // \todo error checking
 
-	log(Info) << "maxfilesize " << maxFileSize_prop.get() 
-			  << " maxbackupindex " << maxBackupIndex_prop.get() << std::endl;
+    Logger::log().logf(Logger::Info, "RollingFileAppender::configureHook",
+                       "maxfilesize %d maxbackupindex %d",
+                       maxFileSize_prop.get(), maxBackupIndex_prop.get());
     appender = new log4cpp::RollingFileAppender(getName(), 
 												filename_prop.get(),
 												maxFileSize_prop.get(),

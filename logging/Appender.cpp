@@ -5,6 +5,7 @@
 #include <log4cpp/BasicLayout.hh>
 #include <log4cpp/SimpleLayout.hh>
 #include <log4cpp/PatternLayout.hh>
+#include <rtt/Logger.hpp>
 
 namespace OCL {
 namespace logging {
@@ -56,9 +57,9 @@ bool Appender::configureLayout()
         }
         else 
         {
-            RTT::log(RTT::Error) << "Invalid layout '" << layoutName
-                       << "' in configuration for category: "
-                       << getName() << RTT::endlog();
+            RTT::Logger::log().logf(RTT::Logger::Error, "Appender::configureLayout",
+                                    "Invalid layout '%s' in configuration for category: %s",
+                                    layoutName.c_str(), getName().c_str());
             rc = false;
         }
     }

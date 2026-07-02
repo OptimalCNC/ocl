@@ -34,9 +34,9 @@ bool GenerationalFileAppender::configureHook()
     int m = maxEventsPerCycle_prop.rvalue();
     if ((0 > m))
     {
-        log(Error) << "Invalid maxEventsPerCycle value of "
-                   << m << ". Value must be >= 0."
-                   << endlog();
+        Logger::log().logf(Logger::Error, "GenerationalFileAppender::configureHook",
+                           "Invalid maxEventsPerCycle value of %d. Value must be >= 0.",
+                           m);
         return false;
     }
     maxEventsPerCycle = m;
@@ -72,7 +72,8 @@ void GenerationalFileAppender::advanceGeneration()
 	}
 	else
 	{
-		log(Error) << "No appender to roll over!" << endlog();
+        Logger::log().logf(Logger::Error, "GenerationalFileAppender::advanceGeneration",
+                           "No appender to roll over!");
 	}
 }
 

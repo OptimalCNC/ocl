@@ -29,9 +29,9 @@ bool FileAppender::configureHook()
     int m = maxEventsPerCycle_prop.rvalue();
     if ((0 > m))
     {
-        log(Error) << "Invalid maxEventsPerCycle value of "
-                   << m << ". Value must be >= 0."
-                   << endlog();
+        Logger::log().logf(Logger::Error, "FileAppender::configureHook",
+                           "Invalid maxEventsPerCycle value of %d. Value must be >= 0.",
+                           m);
         return false;
     }
     maxEventsPerCycle = m;

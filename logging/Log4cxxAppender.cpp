@@ -64,9 +64,9 @@ bool Log4cxxAppender::configureHook()
     int m = maxEventsPerCycle_prop;
     if ((0 > m))
     {
-        log(Error) << "Invalid maxEventsPerCycle value of "
-                   << m << ". Value must be >= 0."
-                   << endlog();
+        Logger::log().logf(Logger::Error, "Log4cxxAppender::configureHook",
+                           "Invalid maxEventsPerCycle value of %d. Value must be >= 0.",
+                           m);
         return false;
     }
     maxEventsPerCycle = m;
