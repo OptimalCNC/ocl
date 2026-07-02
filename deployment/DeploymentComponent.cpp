@@ -939,10 +939,9 @@ namespace OCL
     bool DeploymentComponent::loadComponentsInGroup(const std::string& configurationfile,
                                                     const int group)
     {
-        RTT::Logger::In in("loadComponents");
-
         RTT::PropertyBag from_file;
-        log(Info) << "Loading '" <<configurationfile<<"' in group " << group << "."<< endlog();
+        Logger::log().logf(Logger::Info, "DeploymentComponent::loadComponents",
+                           "Loading '%s' in group %d.", configurationfile.c_str(), group);
         // demarshalling failures:
         bool failure = false;
         // semantic failures:
@@ -952,9 +951,11 @@ namespace OCL
             if ( demarshaller.deserialize( from_file ) )
                 {
                     valid = true;
-                    log(Info)<<"Validating new configuration..."<<endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::loadComponents",
+                                       "Validating new configuration...");
                     if ( from_file.empty() ) {
-                        log(Error)<< "Configuration was empty !" <<endlog();
+                        Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                           "Configuration was empty !");
                         valid = false;
                     }
 
@@ -964,7 +965,8 @@ namespace OCL
                         if ( (*it)->getName() == "Import" ) {
                             RTT::Property<std::string> importp = *it;
                             if ( !importp.ready() ) {
-                                log(Error)<< "Found 'Import' statement, but it is not of type='string'."<<endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                   "Found 'Import' statement, but it is not of type='string'.");
                                 valid = false;
                                 continue;
                             }
@@ -975,7 +977,8 @@ namespace OCL
                         if ( (*it)->getName() == "LoadLibrary" ) {
                             RTT::Property<std::string> importp = *it;
                             if ( !importp.ready() ) {
-                                log(Error)<< "Found 'LoadLibrary' statement, but it is not of type='string'."<<endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                   "Found 'LoadLibrary' statement, but it is not of type='string'.");
                                 valid = false;
                                 continue;
                             }
@@ -986,7 +989,8 @@ namespace OCL
                         if ( (*it)->getName() == "Path" ) {
                             RTT::Property<std::string> pathp = *it;
                             if ( !pathp.ready() ) {
-                                log(Error)<< "Found 'Path' statement, but it is not of type='string'."<<endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                   "Found 'Path' statement, but it is not of type='string'.");
                                 valid = false;
                                 continue;
                             }
@@ -996,7 +1000,8 @@ namespace OCL
                         if ( (*it)->getName() == "Include" ) {
                             RTT::Property<std::string> includep = *it;
                             if ( !includep.ready() ) {
-                                log(Error)<< "Found 'Include' statement, but it is not of type='string'."<<endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                   "Found 'Include' statement, but it is not of type='string'.");
                                 valid = false;
                                 continue;
                             }
@@ -1008,7 +1013,8 @@ namespace OCL
                         if ( (*it)->getName() == "GlobalsRepository" ) {
                             RTT::Property<RTT::PropertyBag> global = *it;
                             if ( !global.ready() ) {
-                                log(Error)<< "Found 'GlobalsRepository' tag, but it is not a complex xml type"<<endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                   "Found 'GlobalsRepository' tag, but it is not a complex xml type");
                                 valid = false;
                                 continue;
                             }
@@ -1017,16 +1023,19 @@ namespace OCL
                                 if ( (*pf)->getName() == "Properties" ) {
                                     RTT::Property<RTT::PropertyBag> props = *pf;
                                     if ( !props.ready() ) {
-                                        log(Error)<< "Found 'Properties' in 'GlobalsRepository' tag, but it is not of type PropertyBag"<<endlog();
+                                        Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                           "Found 'Properties' in 'GlobalsRepository' tag, but it is not of type PropertyBag");
                                         valid = false;
                                         continue;
                                     }
                                     bool ret = updateProperties( *RTT::types::GlobalsRepository::Instance()->properties(), props );
                                     if (!ret) {
-                                        log(Error) << "Failed to configure global properties from configuration file."<<endlog();
+                                        Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                           "Failed to configure global properties from configuration file.");
                                         valid = false;
                                     } else {
-                                        log(Info) << "Configured global properties from configuration file."<<endlog();
+                                        Logger::log().logf(Logger::Info, "DeploymentComponent::loadComponents",
+                                                           "Configured global properties from configuration file.");
                                     }
                                 }
                             }
@@ -1036,7 +1045,9 @@ namespace OCL
                         // Check if it is a propertybag.
                         RTT::Property<RTT::PropertyBag> comp = *it;
                         if ( !comp.ready() ) {
-                            log(Error)<< "RTT::Property '"<< *it <<"' should be a struct, Include, Path or Import statement." << endlog();
+                            Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                               "RTT::Property '%s' of type '%s' should be a struct, Include, Path or Import statement.",
+                                               (*it)->getName().c_str(), (*it)->getType().c_str());
                             valid = false;
                             continue;
                         }
@@ -1061,21 +1072,25 @@ namespace OCL
                             }
 #endif
 #endif
-                            log(Debug) << "Saw connection policy " << (*it)->getName() << endlog();
+                            Logger::log().logf(Logger::Debug, "DeploymentComponent::loadComponents",
+                                               "Saw connection policy %s", (*it)->getName().c_str());
                             continue;
                         }
 
                         // Parse the options before creating the component:
                         for (RTT::PropertyBag::const_iterator optit= comp.rvalue().begin(); optit != comp.rvalue().end();optit++) {
                             if ( valid_names.find( (*optit)->getName() ) == valid_names.end() ) {
-                                log(Error) << "Unknown type syntax: '"<< (*optit)->getName() << "' in component struct "<< comp.getName() <<endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                   "Unknown type syntax: '%s' in component struct %s",
+                                                   (*optit)->getName().c_str(), comp.getName().c_str());
                                 valid = false;
                                 continue;
                             }
                             if ( (*optit)->getName() == "AutoConnect" ) {
                                 RTT::Property<bool> ps = comp.rvalue().getProperty("AutoConnect");
                                 if (!ps.ready()) {
-                                    log(Error) << "AutoConnect must be of type <boolean>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "AutoConnect must be of type <boolean>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].autoconnect = ps.get();
@@ -1084,7 +1099,8 @@ namespace OCL
                             if ( (*optit)->getName() == "AutoStart" ) {
                                 RTT::Property<bool> ps = comp.rvalue().getProperty("AutoStart");
                                 if (!ps.ready()) {
-                                    log(Error) << "AutoStart must be of type <boolean>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "AutoStart must be of type <boolean>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].autostart = ps.get();
@@ -1093,7 +1109,8 @@ namespace OCL
                             if ( (*optit)->getName() == "AutoSave" ) {
                                 RTT::Property<bool> ps = comp.rvalue().getProperty("AutoSave");
                                 if (!ps.ready()) {
-                                    log(Error) << "AutoSave must be of type <boolean>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "AutoSave must be of type <boolean>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].autosave = ps.get();
@@ -1102,7 +1119,8 @@ namespace OCL
                             if ( (*optit)->getName() == "AutoConf" ) {
                                 RTT::Property<bool> ps = comp.rvalue().getProperty("AutoConf");
                                 if (!ps.ready()) {
-                                    log(Error) << "AutoConf must be of type <boolean>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "AutoConf must be of type <boolean>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].autoconf = ps.get();
@@ -1111,7 +1129,8 @@ namespace OCL
                             if ( (*optit)->getName() == "Server" ) {
                                 RTT::Property<bool> ps = comp.rvalue().getProperty("Server");
                                 if (!ps.ready()) {
-                                    log(Error) << "Server must be of type <boolean>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "Server must be of type <boolean>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].server = ps.get();
@@ -1120,7 +1139,9 @@ namespace OCL
                             if ( (*optit)->getName() == "Service" || (*optit)->getName() == "Plugin"  || (*optit)->getName() == "Provides") {
                                 RTT::Property<string> ps = *optit;
                                 if (!ps.ready()) {
-                                    log(Error) << (*optit)->getName() << " must be of type <string>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "%s must be of type <string>",
+                                                       (*optit)->getName().c_str());
                                     valid = false;
                                 } else {
                                     compmap[comp.getName()].plugins.push_back(ps.value());
@@ -1130,7 +1151,8 @@ namespace OCL
                             if ( (*optit)->getName() == "UseNamingService" ) {
                                 RTT::Property<bool> ps = comp.rvalue().getProperty("UseNamingService");
                                 if (!ps.ready()) {
-                                    log(Error) << "UseNamingService must be of type <boolean>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "UseNamingService must be of type <boolean>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].use_naming = ps.get();
@@ -1139,7 +1161,8 @@ namespace OCL
                             if ( (*optit)->getName() == "PropertyFile" ) {
                                 RTT::Property<string> ps = comp.rvalue().getProperty("PropertyFile");
                                 if (!ps.ready()) {
-                                    log(Error) << "PropertyFile must be of type <string>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "PropertyFile must be of type <string>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].configfile = ps.get();
@@ -1148,7 +1171,8 @@ namespace OCL
                             if ( (*optit)->getName() == "UpdateProperties" ) {
                                 RTT::Property<string> ps = comp.rvalue().getProperty("UpdateProperties");
                                 if (!ps.ready()) {
-                                    log(Error) << "UpdateProperties must be of type <string>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "UpdateProperties must be of type <string>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].configfile = ps.get();
@@ -1157,7 +1181,8 @@ namespace OCL
                             if ( (*optit)->getName() == "LoadProperties" ) {
                                 RTT::Property<string> ps = comp.rvalue().getProperty("LoadProperties");
                                 if (!ps.ready()) {
-                                    log(Error) << "LoadProperties must be of type <string>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "LoadProperties must be of type <string>");
                                     valid = false;
                                 } else
                                     compmap[comp.getName()].configfile = ps.get();
@@ -1166,7 +1191,8 @@ namespace OCL
                             if ( (*optit)->getName() == "Properties" ) {
                                 base::PropertyBase* ps = comp.rvalue().getProperty("Properties");
                                 if (!ps) {
-                                    log(Error) << "Properties must be a <struct>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "Properties must be a <struct>");
                                     valid = false;
                                 }
                                 continue;
@@ -1174,7 +1200,8 @@ namespace OCL
                             if ( (*optit)->getName() == "RunScript" ) {
                                 base::PropertyBase* ps = comp.rvalue().getProperty("RunScript");
                                 if (!ps) {
-                                    log(Error) << "RunScript must be of type <string>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "RunScript must be of type <string>");
                                     valid = false;
                                 }
                                 continue;
@@ -1182,7 +1209,8 @@ namespace OCL
                             if ( (*optit)->getName() == "ProgramScript" ) {
                                 base::PropertyBase* ps = comp.rvalue().getProperty("ProgramScript");
                                 if (!ps) {
-                                    log(Error) << "ProgramScript must be of type <string>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "ProgramScript must be of type <string>");
                                     valid = false;
                                 }
                                 continue;
@@ -1190,7 +1218,8 @@ namespace OCL
                             if ( (*optit)->getName() == "StateMachineScript" ) {
                                 base::PropertyBase* ps = comp.rvalue().getProperty("StateMachineScript");
                                 if (!ps) {
-                                    log(Error) << "StateMachineScript must be of type <string>" << endlog();
+                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                       "StateMachineScript must be of type <string>");
                                     valid = false;
                                 }
                                 continue;
@@ -1206,7 +1235,9 @@ namespace OCL
                         if ( !c ) {
                             // try to load it.
                             if (this->loadComponent( (*it)->getName(), comp.rvalue().getType() ) == false) {
-                                log(Warning)<< "Could not configure '"<< (*it)->getName() <<"': No such peer."<< endlog();
+                                Logger::log().logf(Logger::Warning, "DeploymentComponent::loadComponents",
+                                                   "Could not configure '%s': No such peer.",
+                                                   (*it)->getName().c_str());
                                 valid = false;
                                 continue;
                             }
@@ -1214,7 +1245,9 @@ namespace OCL
 
                             // The component is added to a group only when it is loaded, not when a service is added or changed.
                             compmap[(*it)->getName()].group = group;
-                            log(Info) << "Component " << (*it)->getName() << " added to group " << group << "." << endlog();
+                            Logger::log().logf(Logger::Info, "DeploymentComponent::loadComponents",
+                                               "Component %s added to group %d.",
+                                               (*it)->getName().c_str(), group);
                         } else {
                             // If the user added c as a peer (outside of Deployer) store the pointer
                             compmap[(*it)->getName()].instance = c;
