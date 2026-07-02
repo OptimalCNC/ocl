@@ -140,24 +140,6 @@ protected:
  */
 extern void deployerDumpTLSF();
 
-#if     defined(ORO_BUILD_LOGGING) && defined(OROSEM_LOG4CPP_LOGGING)
-/** Get command line options for log4cpp-configuration of RTT category
- */
-extern boost::program_options::options_description deployerRttLog4cppOptions(
-    std::string& rttLog4cppConfigFile);
-
-/** Configure where RTT::Logger's file logging goes to (which is through
- *  log4cpp, but not through OCL's log4cpp-derived real-time logging!)
- *  Does not affect the priority of the RTT::Logger::log4cppCategoryName category.
- *
- *  @param rttLog4cppConfigFile Name of file to read log4cpp configuration from.
- *  If empty, then configures a default file appender to 'orocos.log'
- *  @return true if successfully setup the configuration
- */
-extern int deployerConfigureRttLog4cppCategory(const std::string& rttLog4cppConfigFile);
-
-#endif
-
 #endif
 
 // namespace

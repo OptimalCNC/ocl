@@ -81,13 +81,6 @@ int main(int argc, char** argv)
     OCL::TLSFMemoryPool         memoryPool;
 #endif
 
-#if     defined(ORO_BUILD_LOGGING) && defined(OROSEM_LOG4CPP_LOGGING)
-    // to support RTT's logging to log4cpp
-    std::string                 rttLog4cppConfigFile;
-    po::options_description     rttLog4cppOptions = OCL::deployerRttLog4cppOptions(rttLog4cppConfigFile);
-    otherOptions.add(rttLog4cppOptions);
-#endif
-
     // were we given non-deployer options? ie find "--"
     int     optIndex    = 0;
     bool    found       = false;
@@ -119,13 +112,6 @@ int main(int argc, char** argv)
 	{
 		return rc;
 	}
-
-#if     defined(ORO_BUILD_LOGGING) && defined(OROSEM_LOG4CPP_LOGGING)
-    if (!OCL::deployerConfigureRttLog4cppCategory(rttLog4cppConfigFile))
-    {
-        return -1;
-    }
-#endif
 
 #ifdef  ORO_BUILD_RTALLOC
     if (!memoryPool.initialize(rtallocMemorySize.size))
