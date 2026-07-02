@@ -65,7 +65,8 @@ namespace TCP
         {
             interpreter->process();
         }
-        Logger::log() << Logger::Info << "Connection closed!" << Logger::endl;
+        Logger::log().logf(Logger::Info, "Datasender::loop",
+                           "Connection closed!");
     }
 
     bool Datasender::breakloop()
@@ -92,27 +93,28 @@ namespace TCP
     bool Datasender::addSubscription(const std::string name )
     {
         lock.lock();
-        log(Debug)<<"Datasender::addSubscription: "<<name<<endlog();
+        Logger::log().logf(Logger::Debug, "Datasender::addSubscription",
+                           "Datasender::addSubscription: %s", name.c_str());
         //Check if a property is available with that name?
         if(reporter->getReport()->find(name)!=NULL){
             //check if subscription already exists
             std::vector<std::string>::const_iterator pos =
                 find(subscriptions.begin(),subscriptions.end(),name);
             if(pos!=subscriptions.end()){
-                Logger::In("DataSender");
-                log(Info)<<"Already subscribed to "<<name<<endlog();
+                Logger::log().logf(Logger::Info, "Datasender::addSubscription",
+                                   "Already subscribed to %s", name.c_str());
                 lock.unlock();
                 return false;
             }else{
-                Logger::In("DataSender");
-                log(Info)<<"Adding subscription for "<<name<<endlog();
+                Logger::log().logf(Logger::Info, "Datasender::addSubscription",
+                                   "Adding subscription for %s", name.c_str());
                 subscriptions.push_back(name);
                 lock.unlock();
                 return true;
             }
         }else{
-            Logger::In("DataSender");
-            log(Error)<<name<<" is not available for reporting"<<endlog();
+            Logger::log().logf(Logger::Error, "Datasender::addSubscription",
+                               "%s is not available for reporting", name.c_str());
             lock.unlock();
             return false;
         }
@@ -130,14 +132,14 @@ namespace TCP
         std::vector<std::string>::iterator pos =
             find(subscriptions.begin(),subscriptions.end(),name);
         if(pos!=subscriptions.end()){
-            Logger::In("DataSender");
-            log(Info)<<"Removing subscription for "<<name<<endlog();
+            Logger::log().logf(Logger::Info, "Datasender::removeSubscription",
+                               "Removing subscription for %s", name.c_str());
             subscriptions.erase(pos);
             lock.unlock();
             return true;
         }else{
-            Logger::In("DataSenser");
-            log(Error)<<"No subscription found for "<<name<<endlog();
+            Logger::log().logf(Logger::Error, "Datasender::removeSubscription",
+                               "No subscription found for %s", name.c_str());
             lock.unlock();
             return false;
         }
@@ -178,16 +180,17 @@ namespace TCP
 
     void Datasender::checkbag(const PropertyBag &v)
     {
-        log(Debug)<<"Let's check the subscriptions"<<endlog();
+        Logger::log().logf(Logger::Debug, "Datasender::checkbag",
+                           "Let's check the subscriptions");
         for(std::vector<std::string>::iterator elem = subscriptions.begin();
             elem!=subscriptions.end();elem++){
             base::PropertyBase* prop = reporter->getReport()->find(*elem);
             if(prop!=NULL){
                 writeOut(prop);
             }else{
-                Logger::In("DataSender");
-                log(Error)<<*elem<<" not longer available for reporting,"<<
-                    ", removing the subscription."<<endlog();
+                Logger::log().logf(Logger::Error, "Datasender::checkbag",
+                                   "%s not longer available for reporting, removing the subscription.",
+                                   elem->c_str());
                 subscriptions.erase(elem);
                 elem--;
             }
