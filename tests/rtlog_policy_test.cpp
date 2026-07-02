@@ -114,6 +114,8 @@ int main()
         {"lua/rtt.cpp", 1, 0},
         {"lua/LuaComponent.cpp", 1, 0},
         {"lua/LuaService.cpp", 1, 0},
+        {"ocl/PrintService.cpp", 1, 0},
+        {"ocl/HMIConsoleOutput.hpp", 1, 0},
         {"taskbrowser/TaskBrowser.cpp", 1, 0},
         {"deployment/CorbaDeploymentComponent.cpp", 1, 0},
         {"reporting/ReportingComponent.cpp", 1, 0},

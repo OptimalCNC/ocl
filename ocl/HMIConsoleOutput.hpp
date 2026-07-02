@@ -95,8 +95,10 @@ namespace OCL
             }
             {
                 RTT::os::MutexLock lock1( log_lock );
-                if ( ! logmessages.str().empty() ) {
-                    RTT::log(RTT::Info) << logmessages.str() << RTT::endlog();
+                const std::string text = logmessages.str();
+                if ( ! text.empty() ) {
+                    RTT::Logger::log().logf(RTT::Logger::Info, getName().c_str(),
+                                            "%s", text.c_str());
                     logmessages.rdbuf()->str("");
                 }
             }

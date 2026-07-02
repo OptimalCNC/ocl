@@ -61,10 +61,9 @@ namespace OCL
         }
         void printlog(Logger::LogLevel level, const std::string& arg)
         {
-            log(LoggerLevel(level)) << arg <<endlog();
+            Logger::log().logf(level, "PrintService", "%s", arg.c_str());
         }
     };
 }
 
 ORO_SERVICE_NAMED_PLUGIN( OCL::PrintService, "print")
-
