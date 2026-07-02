@@ -31,32 +31,40 @@ namespace OCL
 		RTT::InputPort<std::string> bufferport;
 
 		void null_0() {
-			log(Warning) << "in: void null_0" << endlog();
+			Logger::log().logf(Logger::Warning, "Testcomp::null_0",
+			                   "in: void null_0");
 		}
 
 		std::string op_0() {
-			log(Warning) << "in: std::string op_0" << endlog();
+			Logger::log().logf(Logger::Warning, "Testcomp::op_0",
+			                   "in: std::string op_0");
 			return "inside operation_0";
 		}
 
 		bool op_1(std::string s) {
-			log(Warning) << "in: bool op_1(std::string s) " << s << endlog();
+			Logger::log().logf(Logger::Warning, "Testcomp::op_1",
+			                   "in: bool op_1(std::string s) %s", s.c_str());
 			return true;
 		}
 
 		double op_2(std::string s, double d) {
-			log(Warning) << "in: double op_2(std::string s, double d) " << s << d << endlog();
+			Logger::log().logf(Logger::Warning, "Testcomp::op_2",
+			                   "in: double op_2(std::string s, double d) %s%f",
+			                   s.c_str(), d);
 			return d*2;
 		}
 
 		void op_1_out(int &i) {
-			log(Warning) << "in: void op_1_out(int &i) " << i << endlog();
+			Logger::log().logf(Logger::Warning, "Testcomp::op_1_out",
+			                   "in: void op_1_out(int &i) %d", i);
 			i = i+1;
 			return;
 		}
 
 		void op_3_out(std::string &s, double &d, int &i) {
-			log(Warning) << "in: void op_3_out(std::string &s, double &d, int &i) " << s << d << i << endlog();
+			Logger::log().logf(Logger::Warning, "Testcomp::op_3_out",
+			                   "in: void op_3_out(std::string &s, double &d, int &i) %s%f%d",
+			                   s.c_str(), d, i);
 			s = s + "-this-string-has-a-tail";
 			d = d * 2;
 			i = 4711;
@@ -64,7 +72,8 @@ namespace OCL
 		}
 
 		bool op_1_out_retval(int &i) {
-			log(Warning) << "in: bool op_1_out_retval(int &i) " << i << endlog();
+			Logger::log().logf(Logger::Warning, "Testcomp::op_1_out_retval",
+			                   "in: bool op_1_out_retval(int &i) %d", i);
 			i = i + 1;
 			return i%2;
 		}
@@ -84,7 +93,8 @@ namespace OCL
 
 
 		void updateHook() {
-			// log(Info) << "inside update_hook" << endlog();
+			// Logger::log().logf(Logger::Info, "Testcomp::updateHook",
+			//                    "inside update_hook");
 		}
 	public:
 		OperationCaller<bool(std::string)> print;
@@ -139,7 +149,8 @@ namespace OCL
 			this->requires("print_str")->addOperationCaller(print);
 
 #if 0
-			log(Info) << "**** Starting the 'Testcomp' component ****" <<endlog();
+			Logger::log().logf(Logger::Info, "Testcomp",
+			                   "**** Starting the 'Testcomp' component ****");
 			this->start();
 #endif
 		}

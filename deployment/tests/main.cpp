@@ -63,8 +63,8 @@ class HelloProvider
 {
 public:
     bool hello() {
-        RTT::Logger::In("connectOperations Test");
-        log(Info) << "Hello World!" << endlog();
+        RTT::Logger::log().logf(RTT::Logger::Info, "connectOperations Test",
+                                "Hello World!");
         return true;
     }
 
@@ -118,7 +118,8 @@ int ORO_main(int, char**)
 #if RTT_VERSION_GTE(2,8,99)
         if (RTT::ConnPolicy::Default().size != 99 ||
             RTT::ConnPolicy::Default().buffer_policy != RTT::Shared) {
-            log(Fatal) << "Default ConnPolicy not set correctly!" << endlog();
+            RTT::Logger::log().logf(RTT::Logger::Fatal, "deployment tests",
+                                    "Default ConnPolicy not set correctly!");
             exit_code = 1;
         }
 #endif

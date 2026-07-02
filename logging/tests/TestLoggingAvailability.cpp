@@ -33,7 +33,9 @@ bool LoggingAvailability::configureHook()
     }
     else
     {
-        log(Error) << "Not available in configureHook()" << endlog();
+        RTT::Logger::log().logf(RTT::Logger::Error,
+                                "logging availability tests",
+                                "Not available in configureHook()");
     }
     return true;
 }    
@@ -46,7 +48,9 @@ bool LoggingAvailability::startHook()
     }
     else
     {
-        log(Error) << "Not available in startHook()" << endlog();
+        RTT::Logger::log().logf(RTT::Logger::Error,
+                                "logging availability tests",
+                                "Not available in startHook()");
     }
     return true;
 }
@@ -59,7 +63,9 @@ void LoggingAvailability::updateHook()
     }
     else
     {
-        log(Error) << "Not available in updateHook()" << endlog();
+        RTT::Logger::log().logf(RTT::Logger::Error,
+                                "logging availability tests",
+                                "Not available in updateHook()");
     }
 }
 
@@ -71,7 +77,9 @@ void LoggingAvailability::stopHook()
     }
     else
     {
-        log(Error) << "Not available in stopHook()" << endlog();
+        RTT::Logger::log().logf(RTT::Logger::Error,
+                                "logging availability tests",
+                                "Not available in stopHook()");
     }
 }
 

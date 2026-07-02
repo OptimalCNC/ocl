@@ -86,8 +86,9 @@ int ORO_main( int argc, char** argv)
     // such that we can see output :
     if ( Logger::log().getLogLevel() < Logger::Info ) {
         Logger::log().setLogLevel( Logger::Info );
-        log(Info) << argv[0]
-		      << " manually raises LogLevel to 'Info' (5). See also file 'orocos.log'."<<endlog();
+        Logger::log().logf(Logger::Info, "reporting tests",
+                           "%s manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.",
+                           argv[0]);
     }
 
     ConsoleReporting rc("Reporting");
@@ -120,4 +121,3 @@ int ORO_main( int argc, char** argv)
 
     return 0;
 }
-

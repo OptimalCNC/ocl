@@ -25,7 +25,9 @@ public:
     bool configureHook()
     {
         if ( receiver.connected() )
-            log(Info) << this->getName() <<" starts listening for timeout events." << endlog();
+            Logger::log().logf(Logger::Info, "timer tests",
+                               "%s starts listening for timeout events.",
+                               this->getName().c_str());
         return receiver.connected();
     }
 
@@ -33,7 +35,9 @@ public:
     {
         os::Timer::TimerId id;
         if (receiver.read(id) == NewData)
-            log(Info) << this->getName() <<" detects timeout for timer " << id << endlog();
+            Logger::log().logf(Logger::Info, "timer tests",
+                               "%s detects timeout for timer %d",
+                               this->getName().c_str(), static_cast<int>(id));
     }
 };
 
@@ -43,8 +47,9 @@ int ORO_main( int argc, char** argv)
     // such that we can see output :
     if ( RTT::Logger::log().getLogLevel() < RTT::Logger::Info ) {
         RTT::Logger::log().setLogLevel( RTT::Logger::Info );
-        log(Info) << argv[0]
-		      << " manually raises LogLevel to 'Info' (5). See also file 'orocos.log'."<<endlog();
+        Logger::log().logf(Logger::Info, "timer tests",
+                           "%s manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.",
+                           argv[0]);
     }
 
 

@@ -61,7 +61,9 @@ int ORO_main( int argc, char** argv)
     // such that we can see output :
     if ( RTT::Logger::log().getLogLevel() < RTT::Logger::Info ) {
         RTT::Logger::log().setLogLevel( RTT::Logger::Info );
-        log(Info) << argv[0] << " manually raises LogLevel to 'Info' (5). See also file 'orocos.log'."<<endlog();
+        Logger::log().logf(Logger::Info, "taskbrowser tests",
+                           "%s manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.",
+                           argv[0]);
     }
 
     TestTaskContext gtc("MyPeer");
@@ -73,10 +75,14 @@ int ORO_main( int argc, char** argv)
 
     TaskBrowser tb( &gtc );
 
-    log(Info) <<endlog()<< "  This demo demonstrates interaction with Components." << endlog();
-    log(Info) << "  Use 'enter' and/or 'leave' to go 'inside' or 'outside' a component. " <<endlog();
-    log(Info) << "  The inside interface shows the methods and ports of the visited component," <<endlog();
-    log(Info) << "  the outside interface show the methods and ports of the TaskBrowser."<<endlog();
+    Logger::log().logf(Logger::Info, "taskbrowser tests",
+                       "  This demo demonstrates interaction with Components.");
+    Logger::log().logf(Logger::Info, "taskbrowser tests",
+                       "  Use 'enter' and/or 'leave' to go 'inside' or 'outside' a component. ");
+    Logger::log().logf(Logger::Info, "taskbrowser tests",
+                       "  The inside interface shows the methods and ports of the visited component,");
+    Logger::log().logf(Logger::Info, "taskbrowser tests",
+                       "  the outside interface show the methods and ports of the TaskBrowser.");
 
     RTT::Activity act(10, 1.0, gtc.engine());
 
@@ -86,4 +92,3 @@ int ORO_main( int argc, char** argv)
 
     return 0;
 }
-

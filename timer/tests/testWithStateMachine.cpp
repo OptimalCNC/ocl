@@ -40,7 +40,6 @@ public:
         boost::shared_ptr<Scripting> scripting = getProvider<Scripting>("scripting");
         if (!scripting)
             return false;
-        Logger::In			in(getName());
         std::string         machineName = this->getName();
         if ( scripting->hasStateMachine(machineName))
         {
@@ -52,25 +51,31 @@ public:
                 }
                 else
                 {
-                    log(Error) << "Unable to start state machine: " << machineName << endlog();
+                    Logger::log().logf(Logger::Error, "testWithStateMachine",
+                                       "Unable to start state machine: %s",
+                                       machineName.c_str());
                 }
             }
             else
             {
-                log(Error) << "Unable to activate state machine: " << machineName << endlog();
+                Logger::log().logf(Logger::Error, "testWithStateMachine",
+                                   "Unable to activate state machine: %s",
+                                   machineName.c_str());
             }
         }
         else
         {
-            log(Error) << "Unable to find state machine: " << machineName << endlog();
+            Logger::log().logf(Logger::Error, "testWithStateMachine",
+                               "Unable to find state machine: %s",
+                               machineName.c_str());
         }
         return rc;
     }
 
     void doLog(std::string message)
     {
-        Logger::In			in(getName());
-        log(Info) << message << endlog();
+        Logger::log().logf(Logger::Info, "testWithStateMachine",
+                           "%s", message.c_str());
     }
 };
 
@@ -80,8 +85,9 @@ int ORO_main( int argc, char** argv)
     // such that we can see output :
     if ( Logger::log().getLogLevel() < Logger::Info ) {
         Logger::log().setLogLevel( Logger::Info );
-        log(Info) << argv[0]
-		      << " manually raises LogLevel to 'Info' (5). See also file 'orocos.log'."<<endlog();
+        Logger::log().logf(Logger::Info, "testWithStateMachine",
+                           "%s manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.",
+                           argv[0]);
     }
 
     HMIConsoleOutput hmi("hmi");
@@ -102,7 +108,8 @@ int ORO_main( int argc, char** argv)
     assert (peer.getProvider<Scripting>("scripting"));
 	if ( !peer.getProvider<Scripting>("scripting")->loadStateMachines(name) )
     {
-        log(Error) << "Unable to load state machine: '" << name << "'" << endlog();
+        Logger::log().logf(Logger::Error, "testWithStateMachine",
+                           "Unable to load state machine: '%s'", name.c_str());
         tcomp.getActivity()->stop();
         return -1;
     }

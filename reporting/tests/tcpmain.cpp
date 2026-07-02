@@ -31,7 +31,8 @@ class TestTaskContext
             this->ports()->addPort( drport );
             this->ports()->addPort( dwport );
             pos = 10;
-            Logger::log() << Logger::Info << "TestTaskContext initialized" << Logger::endl;
+            Logger::log().logf(Logger::Info, "reporting tcp tests",
+                               "TestTaskContext initialized");
 
         // write initial value.
             dwport.setDataSample( init );
@@ -91,7 +92,9 @@ int ORO_main( int argc, char** argv)
     // such that we can see output :
     if ( Logger::log().getLogLevel() < Logger::Info ) {
         Logger::log().setLogLevel( Logger::Info );
-        Logger::log() << Logger::Info << argv[0] << " manually raises LogLevel to 'Info' (5). See also file 'orocos.log'."<<Logger::endl;
+        Logger::log().logf(Logger::Info, "reporting tcp tests",
+                           "%s manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.",
+                           argv[0]);
     }
 
 
@@ -117,4 +120,3 @@ int ORO_main( int argc, char** argv)
     act1.stop();
     return 0;
 }
-
