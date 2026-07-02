@@ -874,7 +874,9 @@ namespace OCL
             for (RTT::PropertyBag::iterator pit = ports->value().begin(); pit != ports->value().end(); pit++) {
                 Property<string> portcon = *pit;
                 if ( !portcon.ready() ) {
-                    log(Error)<< "RTT::Property '"<< (*pit)->getName() <<"' is not of type 'string'." << endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::createConnectionMapFromPortsTag",
+                                       "RTT::Property '%s' is not of type 'string'.",
+                                       (*pit)->getName().c_str());
                     valid = false;
                     continue;
                 }
@@ -882,10 +884,14 @@ namespace OCL
                 if ( !p ) {
                     if (ignoreNonexistentPorts)
                     {
-                        log(Info)<< "Component '"<< c->getName() <<"' does not have a Port '"<< portcon.getName()<<"'. Will try to connect again later." << endlog();
+                        Logger::log().logf(Logger::Info, "DeploymentComponent::createConnectionMapFromPortsTag",
+                                           "Component '%s' does not have a Port '%s'. Will try to connect again later.",
+                                           c->getName().c_str(), portcon.getName().c_str());
                         continue;   // ignore this issue
                     } else {
-                        log(Error)<< "Component '"<< c->getName() <<"' does not have a Port '"<< portcon.getName()<<"'." << endlog();
+                        Logger::log().logf(Logger::Error, "DeploymentComponent::createConnectionMapFromPortsTag",
+                                           "Component '%s' does not have a Port '%s'.",
+                                           c->getName().c_str(), portcon.getName().c_str());
                         valid = false;
                     }
                 }
@@ -906,8 +912,9 @@ namespace OCL
 
                     if(to_add)
                     {
-                        log(Debug)<<"storing Port: "<<c->getName()<<"."<< portcon.getName();
-                        log(Debug)<<" in " << conn_name <<endlog();
+                        Logger::log().logf(Logger::Debug, "DeploymentComponent::createConnectionMapFromPortsTag",
+                                           "storing Port: %s.%s in %s",
+                                           c->getName().c_str(), portcon.getName().c_str(), conn_name.c_str());
                         conmap[conn_name].ports.push_back( p );
                         conmap[conn_name].owners.push_back( c );
                     }

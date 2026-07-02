@@ -116,7 +116,8 @@ int main()
         {"deployment/CorbaDeploymentComponent.cpp", 1, 0},
         {"deployment/DeploymentComponent.cpp", 220, 460},
         {"deployment/DeploymentComponent.cpp", 461, 720},
-        {"deployment/DeploymentComponent.cpp", 721, 855}
+        {"deployment/DeploymentComponent.cpp", 721, 855},
+        {"deployment/DeploymentComponent.cpp", 856, 920}
     };
 
     std::vector<std::string> violations;
