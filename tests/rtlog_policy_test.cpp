@@ -15,6 +15,13 @@
 
 namespace
 {
+    struct LogPolicyTarget
+    {
+        const char* path;
+        int first_line;
+        int last_line;
+    };
+
     std::string sourceRoot()
     {
         const std::string self(__FILE__);
@@ -96,22 +103,24 @@ int main()
     if (root.empty())
         return 1;
 
-    const char* files[] = {
-        "bin/deployer.cpp",
-        "bin/cdeployer.cpp",
-        "bin/deployer-corba.cpp",
-        "bin/deployer-funcs.cpp",
-        "lua/rttlua.cpp",
-        "lua/rtt.cpp",
-        "lua/LuaComponent.cpp",
-        "lua/LuaService.cpp",
-        "taskbrowser/TaskBrowser.cpp",
-        "deployment/CorbaDeploymentComponent.cpp"
+    const LogPolicyTarget targets[] = {
+        {"bin/deployer.cpp", 1, 0},
+        {"bin/cdeployer.cpp", 1, 0},
+        {"bin/deployer-corba.cpp", 1, 0},
+        {"bin/deployer-funcs.cpp", 1, 0},
+        {"lua/rttlua.cpp", 1, 0},
+        {"lua/rtt.cpp", 1, 0},
+        {"lua/LuaComponent.cpp", 1, 0},
+        {"lua/LuaService.cpp", 1, 0},
+        {"taskbrowser/TaskBrowser.cpp", 1, 0},
+        {"deployment/CorbaDeploymentComponent.cpp", 1, 0},
+        {"deployment/DeploymentComponent.cpp", 220, 460}
     };
 
     std::vector<std::string> violations;
-    for (std::size_t file_index = 0; file_index != sizeof(files) / sizeof(files[0]); ++file_index) {
-        const std::string relative = files[file_index];
+    for (std::size_t file_index = 0; file_index != sizeof(targets) / sizeof(targets[0]); ++file_index) {
+        const LogPolicyTarget& target = targets[file_index];
+        const std::string relative = target.path;
         std::istringstream lines(readFile(root + "/" + relative));
         if (!lines)
             return 1;
@@ -120,6 +129,10 @@ int main()
         int line_number = 0;
         while (std::getline(lines, line)) {
             ++line_number;
+            if (line_number < target.first_line)
+                continue;
+            if (target.last_line != 0 && line_number > target.last_line)
+                break;
             if (hasLegacyStreamLog(line)) {
                 std::ostringstream message;
                 message << relative << ":" << line_number << ": " << line;

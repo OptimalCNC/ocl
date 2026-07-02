@@ -243,7 +243,8 @@ namespace OCL
             this->configure();
 
             // Backwards compatibility with < 2.3: import OCL by default
-            log(Info) << "No site file was found. Importing 'ocl' by default." <<endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent",
+                               "No site file was found. Importing 'ocl' by default.");
             try {
                 import("ocl");
             } catch (std::exception& e) {
@@ -253,20 +254,22 @@ namespace OCL
         }
 
         // OK: kick-start it. Need to do import("ocl") and set AutoConf to configure self.
-        log(Info) << "Using site file '" << siteFile << "'." << endlog();
+        Logger::log().logf(Logger::Info, "DeploymentComponent",
+                           "Using site file '%s'.", siteFile.c_str());
         this->kickStart( siteFile );
 
     }
 
     bool DeploymentComponent::configureHook()
     {
-        Logger::In in("configure");
         if (compPath.empty() )
         {
             compPath = ComponentLoader::Instance()->getComponentPath();
         } else {
-            log(Info) <<"RTT_COMPONENT_PATH was set to " << compPath << endlog();
-            log(Info) <<"Re-scanning for plugins and components..."<<endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent::configure",
+                               "RTT_COMPONENT_PATH was set to %s", compPath.c_str());
+            Logger::log().logf(Logger::Info, "DeploymentComponent::configure",
+                               "Re-scanning for plugins and components...");
             PluginLoader::Instance()->setPluginPath(compPath);
             ComponentLoader::Instance()->setComponentPath(compPath);
             ComponentLoader::Instance()->import(compPath);
@@ -346,15 +349,16 @@ namespace OCL
 
     bool DeploymentComponent::connectPeers(const std::string& one, const std::string& other)
     {
-        RTT::Logger::In in("connectPeers");
         RTT::TaskContext* t1 = (((one == this->getName()) || (one == "this")) ? this : this->getPeer(one));
         RTT::TaskContext* t2 = (((other == this->getName()) || (other == "this")) ? this : this->getPeer(other));
         if (!t1) {
-            log(Error)<< "No such peer: "<<one<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectPeers",
+                               "No such peer: %s", one.c_str());
             return false;
         }
         if (!t2) {
-            log(Error) << "No such peer: "<<other<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectPeers",
+                               "No such peer: %s", other.c_str());
             return false;
         }
         return t1->connectPeers(t2);
@@ -362,19 +366,21 @@ namespace OCL
 
     bool DeploymentComponent::addPeer(const std::string& from, const std::string& to)
     {
-        RTT::Logger::In in("addPeer");
         RTT::TaskContext* t1 = (((from == this->getName()) || (from == "this")) ? this : this->getPeer(from));
         RTT::TaskContext* t2 = (((to == this->getName()) || (to == "this")) ? this : this->getPeer(to));
         if (!t1) {
-            log(Error)<< "No such peer: "<<from<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::addPeer",
+                               "No such peer: %s", from.c_str());
             return false;
         }
         if (!t2) {
-            log(Error)<< "No such peer: "<<to<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::addPeer",
+                               "No such peer: %s", to.c_str());
             return false;
         }
         if ( t1->hasPeer(to) ) {
-            log(Info) << "addPeer: "<< to << " is already a peer of " << from << endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent::addPeer",
+                               "addPeer: %s is already a peer of %s", to.c_str(), from.c_str());
             return true;
         }
         return t1->addPeer(t2,to);
@@ -382,15 +388,18 @@ namespace OCL
 
     bool DeploymentComponent::aliasPeer(const std::string& from, const std::string& to, const std::string& alias)
     {
-        RTT::Logger::In in("addPeer");
         RTT::TaskContext* t1 = (((from == this->getName()) || (from == "this")) ? this : this->getPeer(from));
         RTT::TaskContext* t2 = (((to == this->getName()) || (to == "this")) ? this : this->getPeer(to));
         if (!t1) {
-            log(Error)<< "No such peer known to deployer '"<< this->getName()<< "': "<<from<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::aliasPeer",
+                               "No such peer known to deployer '%s': %s",
+                               this->getName().c_str(), from.c_str());
             return false;
         }
         if (!t2) {
-            log(Error)<< "No such peer known to deployer '"<< this->getName()<< "': "<<to<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::aliasPeer",
+                               "No such peer known to deployer '%s': %s",
+                               this->getName().c_str(), to.c_str());
             return false;
         }
         return t1->addPeer(t2, alias);
@@ -403,13 +412,17 @@ namespace OCL
       // strs could be empty because of a bug in Boost 1.44 (see https://svn.boost.org/trac/boost/ticket/4751)
       if (strs.empty()) return Service::shared_ptr();
 
-    	string component = strs.front();
+        string component = strs.front();
         RTT::TaskContext *tc = (((component == this->getName()) || (component == "this")) ? this : getPeer(component));
         if (!tc) {
-            log(Error) << "No such component: '"<< component << "'";
-    		if ( names.find('.') != string::npos )
-                log(Error) << " when looking for service '" << names <<" '";
-            log() << endlog();
+            if ( names.find('.') != string::npos ) {
+                Logger::log().logf(Logger::Error, "DeploymentComponent::stringToService",
+                                   "No such component: '%s' when looking for service '%s '",
+                                   component.c_str(), names.c_str());
+            } else {
+                Logger::log().logf(Logger::Error, "DeploymentComponent::stringToService",
+                                   "No such component: '%s'", component.c_str());
+            }
     		return Service::shared_ptr();
     	}
     	// component is peer or self:
@@ -425,7 +438,9 @@ namespace OCL
     			strs.erase( strs.begin() );
     	}
     	if (!ret) {
-    		log(Error) <<"No such service: '"<< strs.front() <<"' while looking for service '"<< names<<"'"<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::stringToService",
+                               "No such service: '%s' while looking for service '%s'",
+                               strs.front().c_str(), names.c_str());
     	}
     	return ret;
     }
@@ -437,9 +452,14 @@ namespace OCL
         string component = strs.front();
         RTT::TaskContext *tc = (((component == this->getName()) || (component == "this")) ? this : getPeer(component));
         if (!tc) {
-            log(Error) << "No such component: '"<< component <<"'" <<endlog();
-            if ( names.find('.') != string::npos )
-                log(Error)<< " when looking for service '" << names <<"'" <<endlog();
+            if ( names.find('.') != string::npos ) {
+                Logger::log().logf(Logger::Error, "DeploymentComponent::stringToServiceRequester",
+                                   "No such component: '%s' when looking for service '%s'",
+                                   component.c_str(), names.c_str());
+            } else {
+                Logger::log().logf(Logger::Error, "DeploymentComponent::stringToServiceRequester",
+                                   "No such component: '%s'", component.c_str());
+            }
             return ServiceRequester::shared_ptr();
         }
         // component is peer or self:
@@ -455,7 +475,9 @@ namespace OCL
                 strs.erase( strs.begin() );
         }
         if (!ret) {
-            log(Error) <<"No such service: '"<< strs.front() <<"' while looking for service '"<< names<<"'"<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::stringToServiceRequester",
+                               "No such service: '%s' while looking for service '%s'",
+                               strs.front().c_str(), names.c_str());
         }
         return ret;
     }
