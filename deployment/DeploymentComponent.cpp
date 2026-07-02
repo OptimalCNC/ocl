@@ -2643,19 +2643,22 @@ namespace OCL
             if(has_operation)
                 ds = peer->provides()->getOperation(NAME);
         } else {
-            log(Info) << "Ignoring deployment shutdown function due to missing peer." << endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent::shutdownDeployment",
+                               "Ignoring deployment shutdown function due to missing peer.");
             return;
         }
         //If no such operation is found, check if we have a shutdown program?
         if (!ds.ready()){
             has_operation = false;
-            log(Info) << "Ignoring deployment shutdown function, looking for shutdown program script." << endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent::shutdownDeployment",
+                               "Ignoring deployment shutdown function, looking for shutdown program script.");
             has_program = peer->getProvider<Scripting>("scripting")->hasProgram(NAME);
         }
         //Only continue if we have a shutdown operation or program script
         if (has_operation || has_program)
             {
-                log(Info) << "Shutting down deployment." << endlog();
+                Logger::log().logf(Logger::Info, "DeploymentComponent::shutdownDeployment",
+                                   "Shutting down deployment.");
                 RTT::SendHandle<void(void)> handle;
                 if(has_operation)
                     handle = ds.send();
@@ -2677,16 +2680,19 @@ namespace OCL
                         if (0 < w)
                         {
                             wait = w;
-                            log(Debug) << "Using override value for " << WAIT_PROP_NAME << endlog();
+                            Logger::log().logf(Logger::Debug, "DeploymentComponent::shutdownDeployment",
+                                               "Using override value for %s", WAIT_PROP_NAME);
                         }
                         else
                         {
-                            log(Warning) << "Ignoring illegal value for " << WAIT_PROP_NAME << endlog();
+                            Logger::log().logf(Logger::Warning, "DeploymentComponent::shutdownDeployment",
+                                               "Ignoring illegal value for %s", WAIT_PROP_NAME);
                         }
                     }
                     else
                     {
-                        log(Debug) << "Using default value for " << WAIT_PROP_NAME << endlog();
+                        Logger::log().logf(Logger::Debug, "DeploymentComponent::shutdownDeployment",
+                                           "Using default value for %s", WAIT_PROP_NAME);
                     }
 
                     RTT::Property<int> totalWait_prop =
@@ -2697,23 +2703,27 @@ namespace OCL
                         if (0 < w)
                         {
                             totalWait = w;
-                            log(Debug) << "Using override value for " << TOTAL_WAIT_PROP_NAME << endlog();
+                            Logger::log().logf(Logger::Debug, "DeploymentComponent::shutdownDeployment",
+                                               "Using override value for %s", TOTAL_WAIT_PROP_NAME);
                         }
                         else
                         {
-                            log(Warning) << "Ignoring illegal value for " << TOTAL_WAIT_PROP_NAME << endlog();
+                            Logger::log().logf(Logger::Warning, "DeploymentComponent::shutdownDeployment",
+                                               "Ignoring illegal value for %s", TOTAL_WAIT_PROP_NAME);
                         }
                     }
                     else
                     {
-                        log(Debug) << "Using default value for " << TOTAL_WAIT_PROP_NAME << endlog();
+                        Logger::log().logf(Logger::Debug, "DeploymentComponent::shutdownDeployment",
+                                           "Using default value for %s", TOTAL_WAIT_PROP_NAME);
                     }
 
                     // enforce constraints
                     if (wait > totalWait)
                     {
                         wait = totalWait;
-                        log(Warning) << "Setting wait == totalWait" << endlog();
+                        Logger::log().logf(Logger::Warning, "DeploymentComponent::shutdownDeployment",
+                                           "Setting wait == totalWait");
                     }
 
                     const long int wait_ns = wait * 1000000LL;
@@ -2722,7 +2732,8 @@ namespace OCL
                     ts.tv_nsec = wait_ns % 1000000000LL;
 
                     // wait till done or timed out
-                    log(Debug) << "Waiting for deployment shutdown to complete ..." << endlog();
+                    Logger::log().logf(Logger::Debug, "DeploymentComponent::shutdownDeployment",
+                                       "Waiting for deployment shutdown to complete ...");
                     int waited = 0;
                     while ( ( (has_operation && RTT::SendNotReady == handle.collectIfDone() ) ||
                               (has_program && peer->getProvider<Scripting>("scripting")->isProgramRunning(NAME)) )
@@ -2733,22 +2744,26 @@ namespace OCL
                     }
                     if (waited >= totalWait)
                     {
-                        log(Error) << "Timed out waiting for deployment shutdown to complete." << endlog();
+                        Logger::log().logf(Logger::Error, "DeploymentComponent::shutdownDeployment",
+                                           "Timed out waiting for deployment shutdown to complete.");
                     }
                     else
                     {
-                        log(Debug) << "Deployment shutdown completed." << endlog();
+                        Logger::log().logf(Logger::Debug, "DeploymentComponent::shutdownDeployment",
+                                           "Deployment shutdown completed.");
                     }
                 }
                 else
                 {
-                    log(Error) << "Failed to start operation or scripting program: " << NAME << endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::shutdownDeployment",
+                                       "Failed to start operation or scripting program: %s", NAME);
                 }
 
             }
             else
             {
-                log(Info) << "No deployment shutdown function or program available." << endlog();
+                Logger::log().logf(Logger::Info, "DeploymentComponent::shutdownDeployment",
+                                   "No deployment shutdown function or program available.");
             }
     }
 

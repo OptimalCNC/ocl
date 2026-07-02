@@ -127,7 +127,8 @@ int main()
         {"deployment/DeploymentComponent.cpp", 1866, 2034},
         {"deployment/DeploymentComponent.cpp", 2035, 2205},
         {"deployment/DeploymentComponent.cpp", 2206, 2490},
-        {"deployment/DeploymentComponent.cpp", 2491, 2615}
+        {"deployment/DeploymentComponent.cpp", 2491, 2615},
+        {"deployment/DeploymentComponent.cpp", 2616, 0}
     };
 
     std::vector<std::string> violations;
