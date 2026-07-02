@@ -42,7 +42,8 @@ namespace OCL
      */
     RTT::TaskContext* createTaskContextProxy(std::string name)
     {
-        log(Debug) << "createTaskContextProxy" <<endlog();
+        RTT::Logger::log().logf(RTT::Logger::Debug, "CorbaDeploymentComponent",
+                                "createTaskContextProxy");
         return ::RTT::corba::TaskContextProxy::Create(name, false);
     }
 
@@ -52,7 +53,8 @@ namespace OCL
      */
     RTT::TaskContext* createTaskContextProxyIORFile(std::string iorfilename)
     {
-        log(Debug) << "createTaskContextProxyIORFile" <<endlog();
+        RTT::Logger::log().logf(RTT::Logger::Debug, "CorbaDeploymentComponent",
+                                "createTaskContextProxyIORFile");
         std::ifstream iorfile( iorfilename.c_str() );
         if (iorfile.is_open() && iorfile.good() ) {
             std::string ior;
@@ -60,7 +62,8 @@ namespace OCL
             return ::RTT::corba::TaskContextProxy::Create( ior, true);
         }
         else {
-            log(Error) << "Could not open IORFile: '" << iorfilename <<"'."<< endlog();
+            RTT::Logger::log().logf(RTT::Logger::Error, "CorbaDeploymentComponent",
+                                    "Could not open IORFile: '%s'.", iorfilename.c_str());
             return 0;
         }
     }
@@ -71,7 +74,8 @@ namespace OCL
      */
     RTT::TaskContext* createTaskContextProxyIOR(std::string ior)
     {
-        log(Debug) << "createTaskContextProxyIOR" <<endlog();
+        RTT::Logger::log().logf(RTT::Logger::Debug, "CorbaDeploymentComponent",
+                                "createTaskContextProxyIOR");
         return ::RTT::corba::TaskContextProxy::Create( ior, true);
     }
 
@@ -79,7 +83,8 @@ namespace OCL
 CorbaDeploymentComponent::CorbaDeploymentComponent(const std::string& name, const std::string& siteFile)
         : DeploymentComponent(name, siteFile)
     {
-        log(Info) << "Registering TaskContextProxy factory." <<endlog();
+        RTT::Logger::log().logf(RTT::Logger::Info, "CorbaDeploymentComponent",
+                                "Registering TaskContextProxy factory.");
         ComponentLoader::Instance()->addFactory("TaskContextProxy", &createTaskContextProxy);
         ComponentLoader::Instance()->addFactory("CORBA", &createTaskContextProxy);
         ComponentLoader::Instance()->addFactory("IORFile", &createTaskContextProxyIORFile);
@@ -99,7 +104,8 @@ CorbaDeploymentComponent::CorbaDeploymentComponent(const std::string& name, cons
     {
         RTT::TaskContext* peer = this->getPeer(tc);
         if (!peer) {
-            log(Error)<<"No such peer: "<< tc <<endlog();
+            RTT::Logger::log().logf(RTT::Logger::Error, "CorbaDeploymentComponent",
+                                    "No such peer: %s", tc.c_str());
             return false;
         }
         if ( ::RTT::corba::TaskContextServer::Create(peer, use_naming) != 0 )
@@ -111,7 +117,8 @@ CorbaDeploymentComponent::CorbaDeploymentComponent(const std::string& name, cons
     {
         RTT::TaskContext* peer = this->getPeer(tc);
         if (!peer) {
-            log(Error)<<"No such peer: "<< tc <<endlog();
+            RTT::Logger::log().logf(RTT::Logger::Error, "CorbaDeploymentComponent",
+                                    "No such peer: %s", tc.c_str());
             return false;
         }
         if ( ::RTT::corba::TaskContextServer::Create(peer, alias, use_naming) != 0 )
@@ -135,7 +142,9 @@ CorbaDeploymentComponent::CorbaDeploymentComponent(const std::string& name, cons
         }
         bool use_naming = compmap[c->getName()].use_naming;
         bool server = compmap[c->getName()].server;
-        log(Info) << "Name:"<< c->getName() << " Server: " << server << " Naming: " << use_naming <<endlog();
+        RTT::Logger::log().logf(RTT::Logger::Info, "CorbaDeploymentComponent",
+                                "Name:%s Server: %d Naming: %d",
+                                c->getName().c_str(), server ? 1 : 0, use_naming ? 1 : 0);
         // create a server, use naming.
         if (server)
             ::RTT::corba::TaskContextServer::Create(c, use_naming);

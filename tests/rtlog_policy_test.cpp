@@ -105,7 +105,8 @@ int main()
         "lua/rtt.cpp",
         "lua/LuaComponent.cpp",
         "lua/LuaService.cpp",
-        "taskbrowser/TaskBrowser.cpp"
+        "taskbrowser/TaskBrowser.cpp",
+        "deployment/CorbaDeploymentComponent.cpp"
     };
 
     std::vector<std::string> violations;
