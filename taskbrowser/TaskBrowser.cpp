@@ -166,6 +166,24 @@ namespace OCL
     nl(std::ostream& __os)
     { return __os.put(__os.widen('\n')); }
 
+    class ScopedLoggerAutoDrain
+    {
+    public:
+        explicit ScopedLoggerAutoDrain(bool enabled)
+            : restore(Logger::log().isAutoDrainEnabled())
+        {
+            Logger::log().setAutoDrain(enabled);
+        }
+
+        ~ScopedLoggerAutoDrain()
+        {
+            Logger::log().setAutoDrain(restore);
+        }
+
+    private:
+        bool restore;
+    };
+
     // All readline specific functions
 #if defined(USE_READLINE)
 
@@ -844,6 +862,9 @@ namespace OCL
      */
     void TaskBrowser::loop()
     {
+        ScopedLoggerAutoDrain logger_drain_guard(false);
+        Logger::log().drainLog();
+
         cout << nl<<
             coloron <<
             "  This console reader allows you to browse and manipulate TaskContexts."<<nl<<
@@ -893,6 +914,7 @@ namespace OCL
                 }
                 // Check port status:
                 checkPorts();
+                Logger::log().drainLog();
                 std::string command;
                 // When using rxvt on windows, the process will receive signals when the arrow keys are used
                 // during input. We compile with /EHa to catch these signals and don't print anything.
@@ -912,11 +934,13 @@ namespace OCL
                 } catch (...) {
                     cerr << "The command line reader throwed an exception." << endl;
                 }
+                Logger::log().drainLog();
                 str_trim( command, ' ');
                 cout << coloroff;
                 if ( command == "quit" ) {
                     // Intercept no Ctrl-C
                     cout << endl;
+                    Logger::log().drainLog();
                     return;
                 } else if ( command == "help") {
                     printHelp();
@@ -973,6 +997,7 @@ namespace OCL
             } catch(...) {
                 cerr << "Warning: The command caused an exception in the TaskBrowser's loop() function." << endl;
             }
+            Logger::log().drainLog();
          }
     }
 
