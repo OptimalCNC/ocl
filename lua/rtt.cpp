@@ -2907,13 +2907,13 @@ static void Logger_logArguments(lua_State *L, int first, Logger::LogLevel ll)
 static int Logger_setLogLevel(lua_State *L)
 {
 	Logger::LogLevel ll = (Logger::LogLevel) luaL_checkoption(L, 1, NULL, loglevels);
-	log().setLogLevel(ll);
+	Logger::log().setLogLevel(ll);
 	return 0;
 }
 
 static int Logger_getLogLevel(lua_State *L)
 {
-	Logger::LogLevel ll = log().getLogLevel();
+	Logger::LogLevel ll = Logger::log().getLogLevel();
 
 	switch(ll) {
 	case Logger::Never:	lua_pushstring(L, "Never"); break;

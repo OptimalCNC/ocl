@@ -130,14 +130,6 @@ namespace OCL
             // New activity with period 0.1s and priority 0.
             this->setActivity( new Activity(0, 0.1) );
 
-            // Set log level more verbose than default,
-            // such that we can see output :
-            //if ( log().getLogLevel() < RTT::Logger::Info ) {
-            //    log().setLogLevel( RTT::Logger::Info );
-            //    Logger::log().logf(Logger::Info, "HelloWorld",
-            //                       "HelloWorld manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.");
-            //}
-
             // Now add member variables to the interface:
             this->properties()->addProperty("the_property", property).doc("A friendly property.");
 
@@ -170,8 +162,8 @@ int ORO_main(int argc, char** argv)
 {
     // Set log level more verbose than default,
     // such that we can see output :
-    if ( log().getLogLevel() < RTT::Logger::Info ) {
-        log().setLogLevel( RTT::Logger::Info );
+    if ( Logger::log().getLogLevel() < RTT::Logger::Info ) {
+        Logger::log().setLogLevel( RTT::Logger::Info );
         Logger::log().logf(Logger::Info, "HelloWorld::main",
                            "%s manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.",
                            argv[0]);
