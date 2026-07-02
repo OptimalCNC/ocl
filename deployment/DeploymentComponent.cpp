@@ -2354,7 +2354,9 @@ namespace OCL
             else
                 peer = this->getPeer(comp_name); // last resort.
         if (!peer) {
-            log(Error) << "Can't create Activity: component "<<comp_name<<" not found."<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::setNamedActivity",
+                               "Can't create Activity: component %s not found.",
+                               comp_name.c_str());
             return false;
         }
         if ( !master_name.empty() ) {
@@ -2367,19 +2369,25 @@ namespace OCL
 		    master_act = this->getPeer(master_name) ? getPeer(master_name)->engine()->getActivity() : 0; // last resort.
 
 	    if ( !this->getPeer(master_name) ) {
-                log(Error) << "Can't create SlaveActivity: Master component "<<master_name<<" not known as peer."<<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::setNamedActivity",
+                                   "Can't create SlaveActivity: Master component %s not known as peer.",
+                                   master_name.c_str());
                 return false;
             }
 
             if (!master_act) {
-                log(Error) << "Can't create SlaveActivity: Master component "<<master_name<<" has no activity set."<<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::setNamedActivity",
+                                   "Can't create SlaveActivity: Master component %s has no activity set.",
+                                   master_name.c_str());
                 return false;
             }
         }
         // this is required for lateron attaching the engine()
         compmap[comp_name].instance = peer;
         if ( peer->isRunning() ) {
-            log(Error) << "Can't change activity of component "<<comp_name<<" since it is still running."<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::setNamedActivity",
+                               "Can't change activity of component %s since it is still running.",
+                               comp_name.c_str());
             return false;
         }
 
@@ -2420,7 +2428,9 @@ namespace OCL
 				else newact = 0;
 			}
         if (newact == 0) {
-            log(Error) << "Can't create '"<< act_type << "' for component "<<comp_name<<": incorrect arguments."<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::setNamedActivity",
+                               "Can't create '%s' for component %s: incorrect arguments.",
+                               act_type.c_str(), comp_name.c_str());
             return false;
         }
 
@@ -2438,13 +2448,17 @@ namespace OCL
     bool DeploymentComponent::setWaitPeriodPolicy(const std::string& comp_name, int policy)
     {
         if ( !compmap.count(comp_name) ) {
-            log(Error) << "Can't setWaitPeriodPolicy: component "<<comp_name<<" not found."<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::setWaitPeriodPolicy",
+                               "Can't setWaitPeriodPolicy: component %s not found.",
+                               comp_name.c_str());
             return false;
         }
 
         RTT::base::ActivityInterface *activity = compmap[comp_name].instance->getActivity();
         if ( !activity ) {
-            log(Error) << "Can't setWaitPeriodPolicy: component "<<comp_name<<" has no activity (yet)."<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::setWaitPeriodPolicy",
+                               "Can't setWaitPeriodPolicy: component %s has no activity (yet).",
+                               comp_name.c_str());
             return false;
         }
 
@@ -2459,14 +2473,14 @@ namespace OCL
 
     bool DeploymentComponent::configureFromFile(const std::string& name, const std::string& filename)
     {
-        RTT::Logger::In in("DeploymentComponent");
         RTT::TaskContext* c;
         if ( name == "this" || name == this->getName() )
             c = this;
         else
             c = this->getPeer(name);
         if (!c) {
-            log(Error)<<"No such peer to configure: "<<name<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::configureFromFile",
+                               "No such peer to configure: %s", name.c_str());
             return false;
         }
 
