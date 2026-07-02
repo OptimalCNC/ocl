@@ -34,6 +34,8 @@
 
 #include "rtt.hpp"
 
+#include <cstdio>
+
 using namespace std;
 using namespace RTT;
 using namespace RTT::detail;
@@ -2876,6 +2878,32 @@ static const char *const loglevels[] = {
 	"Never", "Fatal", "Critical", "Error", "Warning", "Info", "Debug", "RealTime", NULL
 };
 
+static void Logger_logArguments(lua_State *L, int first, Logger::LogLevel ll)
+{
+	char buffer[1024];
+	size_t used = 0;
+	buffer[0] = '\0';
+
+	for(int i = first; i <= lua_gettop(L); i++) {
+		const char *mes = luaL_checkstring(L, i);
+		const size_t remaining = sizeof(buffer) - used;
+		if(remaining <= 1)
+			break;
+
+		const int written = snprintf(buffer + used, remaining, "%s", mes ? mes : "");
+		if(written < 0)
+			break;
+		if(static_cast<size_t>(written) >= remaining) {
+			used = sizeof(buffer) - 1;
+			buffer[used] = '\0';
+			break;
+		}
+		used += static_cast<size_t>(written);
+	}
+
+	Logger::log().logf(ll, "Lua", "%s", buffer);
+}
+
 static int Logger_setLogLevel(lua_State *L)
 {
 	Logger::LogLevel ll = (Logger::LogLevel) luaL_checkoption(L, 1, NULL, loglevels);
@@ -2904,24 +2932,14 @@ static int Logger_getLogLevel(lua_State *L)
 
 static int Logger_log(lua_State *L)
 {
-	const char *mes;
-	for(int i=1; i<=lua_gettop(L); i++) {
-		mes = luaL_checkstring(L, i);
-		Logger::log() << mes;
-	}
-	Logger::log() << endlog();
+	Logger_logArguments(L, 1, Logger::Info);
 	return 0;
 }
 
 static int Logger_logl(lua_State *L)
 {
-	const char *mes;
 	Logger::LogLevel ll = (Logger::LogLevel) luaL_checkoption(L, 1, NULL, loglevels);
-	for(int i=2; i<=lua_gettop(L); i++) {
-		mes = luaL_checkstring(L, i);
-		Logger::log(ll) << mes;
-	}
-	Logger::log(ll) << endlog();
+	Logger_logArguments(L, 2, ll);
 	return 0;
 }
 
@@ -3167,8 +3185,10 @@ bool call_func(lua_State *L, const char *fname, TaskContext *tc,
 	}
 
 	if (lua_pcall(L, 0, num_res, 0) != 0) {
-		Logger::log(Logger::Error) << "LuaComponent '"<< tc->getName()  <<"': error calling function "
-					   << fname << ": " << lua_tostring(L, -1) << endlog();
+		const char* lua_error = lua_tostring(L, -1);
+		Logger::log().logf(Logger::Error, "LuaComponent",
+		                   "LuaComponent '%s': error calling function %s: %s",
+		                   tc->getName().c_str(), fname, lua_error ? lua_error : "<no Lua error>");
 		lua_pop(L, 1);
 		ret = false;
 		goto out;
@@ -3176,9 +3196,9 @@ bool call_func(lua_State *L, const char *fname, TaskContext *tc,
 
 	if(require_result) {
 		if (!lua_isboolean(L, -1)) {
-			Logger::log(Logger::Error) << "LuaComponent '" << tc->getName() << "': " << fname
-						   << " must return a bool but returned a "
-						   << lua_typename(L, lua_type(L, -1)) << endlog();
+			Logger::log().logf(Logger::Error, "LuaComponent",
+			                   "LuaComponent '%s': %s must return a bool but returned a %s",
+			                   tc->getName().c_str(), fname, lua_typename(L, lua_type(L, -1)));
 			lua_pop(L, 1);
 			ret = false;
 			goto out;

@@ -102,6 +102,7 @@ int main()
         "bin/deployer-corba.cpp",
         "bin/deployer-funcs.cpp",
         "lua/rttlua.cpp",
+        "lua/rtt.cpp",
         "lua/LuaComponent.cpp",
         "lua/LuaService.cpp"
     };
