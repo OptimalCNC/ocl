@@ -30,6 +30,7 @@
 #include <cctype>
 #include <cerrno>
 #include <rtt/Property.hpp>
+#include <rtt/Logger.hpp>
 #include "NiceHeaderMarshaller.hpp"
 #include "TcpReporting.hpp"
 #include "command.hpp"
@@ -40,6 +41,7 @@
 using OCL::TCP::RealCommand;
 using OCL::TCP::Socket;
 using OCL::TCP::TcpReportingInterpreter;
+using RTT::Logger;
 
 namespace
 {
@@ -602,7 +604,8 @@ namespace TCP
                 correct = true;
             }
         } else {
-            Logger::log() << Logger::Error << "Invalid command: " << ipt << Logger::endl;
+            Logger::log().logf(Logger::Error, "TcpReportingInterpreter::process",
+                               "Invalid command: %s", ipt.c_str());
         }
         commands.unlock();
 
@@ -650,7 +653,9 @@ namespace TCP
         }
         if( i == cmds.end() )
         {
-            Logger::log() << Logger::Error << "TcpReportingInterpreter::removeCommand: removing unknown command" << ipt << Logger::endl;
+            Logger::log().logf(Logger::Error, "TcpReportingInterpreter::removeCommand",
+                               "TcpReportingInterpreter::removeCommand: removing unknown command%s",
+                               ipt);
         } else {
             Command* todel = *i;
             cmds.erase(i);
@@ -675,4 +680,3 @@ namespace TCP
     }
 }
 }
-

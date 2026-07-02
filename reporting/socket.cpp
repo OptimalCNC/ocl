@@ -73,7 +73,8 @@ http://gobby.0x539.de/trac/browser/net6/trunk/src/socket.cpp?rev=224
                 if (-1 == setsockopt(
                         mainClass->socket, SOL_SOCKET, SO_NOSIGPIPE, &value, sizeof(value)))
                 {
-                    Logger::log() << Logger::Error << "Error setting socket option. Continuing." << Logger::endl;
+                    Logger::log().logf(Logger::Error, "Socket",
+                                       "Error setting socket option. Continuing.");
                 }
  #endif
             }
@@ -111,7 +112,8 @@ http://gobby.0x539.de/trac/browser/net6/trunk/src/socket.cpp?rev=224
 
             void put_char(int chr)
             {
-                Logger::log() << Logger::Error << "Socket::put_char is unimplemented" << Logger::endl;
+                Logger::log().logf(Logger::Error, "Socket::put_char",
+                                   "Socket::put_char is unimplemented");
             }
 
             void put_buffer()
@@ -208,7 +210,8 @@ namespace TCP {
     {
         if( end + MSGLENGTH >= BUFLENGTH ) {
             if( ptrpos - begin > MSGLENGTH ) {
-                Logger::log() << Logger::Error << "Message length violation" << Logger::endl;
+                Logger::log().logf(Logger::Error, "Socket::checkBufferOverflow",
+                                   "Message length violation");
                 rawClose();
             } else {
                 memcpy( buffer, &buffer[begin], end - begin);

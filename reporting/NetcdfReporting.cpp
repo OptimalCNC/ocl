@@ -38,7 +38,8 @@ namespace OCL
        */
       retval = nc_create(repfile.get().c_str(), NC_CLOBBER | NC_SHARE, &ncid);
       if ( retval ) {
-       log(Error) << "Could not create "+repfile.get()+" for reporting."<<endlog();
+       Logger::log().logf(Logger::Error, "NetcdfReporting::startHook",
+                          "Could not create %s for reporting.", repfile.get().c_str());
        return false;
       }
 
@@ -48,7 +49,8 @@ namespace OCL
        */
       retval = nc_def_dim(ncid, "time", NC_UNLIMITED, &dimsid);
       if ( retval ) {
-       log(Error) << "Could not create time dimension "+repfile.get() <<endlog();
+       Logger::log().logf(Logger::Error, "NetcdfReporting::startHook",
+                          "Could not create time dimension %s", repfile.get().c_str());
        return false;
       }
 
@@ -57,7 +59,8 @@ namespace OCL
        */
       retval = nc_enddef( ncid );
       if ( retval ) {
-       log(Error) << "Could not leave define mode in "+repfile.get() <<endlog();
+       Logger::log().logf(Logger::Error, "NetcdfReporting::startHook",
+                          "Could not leave define mode in %s", repfile.get().c_str());
        return false;
       }
 
@@ -71,7 +74,7 @@ namespace OCL
 
   void NetcdfReporting::stopHook()
   {
-    int retval;
+    int retval = 0;
 
     ReportingComponent::stopHook();
 
@@ -83,7 +86,8 @@ namespace OCL
     if ( ncid )
       retval = nc_close (ncid);
     if ( retval )
-      log(Error) << "Could not close file "+repfile.get()+" for reporting."<<endlog();
+      Logger::log().logf(Logger::Error, "NetcdfReporting::stopHook",
+                         "Could not close file %s for reporting.", repfile.get().c_str());
   }
 
 }

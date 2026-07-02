@@ -20,7 +20,6 @@ namespace OCL
 
         bool ConsoleReporting::startHook()
         {
-            RTT::Logger::In in("ConsoleReporting::startup");
             if (mconsole) {
                 RTT::marsh::MarshallInterface* fheader;
                 RTT::marsh::MarshallInterface* fbody;
@@ -32,7 +31,8 @@ namespace OCL
 
                 this->addMarshaller( fheader, fbody );
             } else {
-                log(Error) << "Could not write to console for reporting."<<RTT::endlog();
+                Logger::log().logf(Logger::Error, "ConsoleReporting::startHook",
+                                   "Could not write to console for reporting.");
             }
 
             return ReportingComponent::startHook();
@@ -52,4 +52,3 @@ namespace OCL
             return this->screenImpl( comp, mconsole );
         }
 }
-

@@ -33,7 +33,9 @@ namespace OCL
 
             this->addMarshaller( fheader, fbody );
         } else {
-            log(Error) << "Could not open file "+repfile.get()+" for reporting."<<endlog();
+            Logger::log().logf(Logger::Error, "FileReporting::startHook",
+                               "Could not open file %s for reporting.",
+                               repfile.get().c_str());
         }
 
         return ReportingComponent::startHook();
@@ -50,7 +52,6 @@ namespace OCL
 
     bool FileReporting::screenComponent( const std::string& comp)
     {
-        Logger::In in("FileReporting::screenComponent");
         ofstream file( (comp + ".screen").c_str() );
         if (!file)
             return false;

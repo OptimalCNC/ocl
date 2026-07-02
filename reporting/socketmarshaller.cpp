@@ -84,8 +84,8 @@ namespace RTT
         void SocketMarshaller::serialize(RTT::base::PropertyBase*)
         {
             // This method is pure virtual in the parent class.
-            Logger::log() << Logger::Error << "Unexpected call to SocketMarshaller::serialize" <<
-                    Logger::endl;
+            Logger::log().logf(Logger::Error, "SocketMarshaller::serialize",
+                               "Unexpected call to SocketMarshaller::serialize");
         }
 
         void SocketMarshaller::serialize(const PropertyBag &v)
