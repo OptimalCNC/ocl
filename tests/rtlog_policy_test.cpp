@@ -121,6 +121,7 @@ int main()
         {"reporting/NetcdfHeaderMarshaller.hpp", 1, 0},
         {"reporting/NetcdfMarshaller.hpp", 1, 0},
         {"logging/LoggingService.cpp", 1, 0},
+        {"helloworld/HelloWorld.cpp", 1, 0},
         {"deployment/DeploymentComponent.cpp", 220, 460},
         {"deployment/DeploymentComponent.cpp", 461, 720},
         {"deployment/DeploymentComponent.cpp", 721, 855},

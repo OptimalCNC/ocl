@@ -107,7 +107,8 @@ namespace OCL
 
             std::string sample;
             while(bufferport.read(sample) == NewData) {
-                log(Debug) << "Received " << sample << endlog();
+                Logger::log().logf(Logger::Debug, "HelloWorld::updateHook",
+                                   "Received %s", sample.c_str());
             }
         }
     public:
@@ -133,7 +134,8 @@ namespace OCL
             // such that we can see output :
             //if ( log().getLogLevel() < RTT::Logger::Info ) {
             //    log().setLogLevel( RTT::Logger::Info );
-            //    log(Info) << "HelloWorld manually raises LogLevel to 'Info' (5). See also file 'orocos.log'."<<endlog();
+            //    Logger::log().logf(Logger::Info, "HelloWorld",
+            //                       "HelloWorld manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.");
             //}
 
             // Now add member variables to the interface:
@@ -150,7 +152,8 @@ namespace OCL
 
             this->addOperation( "the_command", &HelloWorld::sayWorld, this, OwnThread).doc("'the_command' Description").arg("the_arg", "Use 'World' as argument to make the command succeed.");
 
-            // log(Info) << "**** Starting the 'Hello' component is cancelled ****" <<endlog();
+            // Logger::log().logf(Logger::Info, "HelloWorld",
+            //                    "**** Starting the 'Hello' component is cancelled ****");
             // Start the component's activity:
             //this->start();
         }
@@ -165,38 +168,48 @@ namespace OCL
 
 int ORO_main(int argc, char** argv)
 {
-    RTT::Logger::In in("main()");
-
     // Set log level more verbose than default,
     // such that we can see output :
     if ( log().getLogLevel() < RTT::Logger::Info ) {
         log().setLogLevel( RTT::Logger::Info );
-        log(Info) << argv[0] << " manually raises LogLevel to 'Info' (5). See also file 'orocos.log'."<<endlog();
+        Logger::log().logf(Logger::Info, "HelloWorld::main",
+                           "%s manually raises LogLevel to 'Info' (5). See also file 'orocos.log'.",
+                           argv[0]);
     }
 
-    log(Info) << "**** Creating the 'Hello' component ****" <<endlog();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "**** Creating the 'Hello' component ****");
     // Create the task:
     HelloWorld hello("Hello");
 
-    log(Info) << "**** Using the 'Hello' component    ****" <<endlog();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "**** Using the 'Hello' component    ****");
 
     // Do some 'client' calls :
-    log(Info) << "**** Reading a RTT::Property:            ****" <<endlog();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "**** Reading a RTT::Property:            ****");
     RTT::Property<std::string> p = hello.properties()->getProperty("the_property");
     assert( p.ready() );
-    log(Info) << "     "<<p.getName() << " = " << p.value() <<endlog();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "     %s = %s", p.getName().c_str(), p.value().c_str());
 #if 0
-    log(Info) << "**** Sending a RTT::OperationCaller:             ****" <<endlog();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "**** Sending a RTT::OperationCaller:             ****");
     RTT::OperationCaller<bool(std::string)> c = hello.getOperation<bool(std::string)>("the_command");
     assert( c.ready() );
-    log(Info) << "     Sending RTT::OperationCaller : " << c.send("World")<<endlog();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "     Sending RTT::OperationCaller : %d", c.send("World").ready() ? 1 : 0);
 
-    log(Info) << "**** Calling a RTT::OperationCaller:              ****" <<endlog();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "**** Calling a RTT::OperationCaller:              ****");
     RTT::OperationCaller<std::string(void)> m = hello.getOperation<std::string(void)>("the_method");
     assert( m.ready() );
-    log(Info) << "     Calling RTT::OperationCaller : " << m() << endlog();
+    const std::string methodResult = m();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "     Calling RTT::OperationCaller : %s", methodResult.c_str());
 #endif
-    log(Info) << "**** Starting the TaskBrowser       ****" <<endlog();
+    Logger::log().logf(Logger::Info, "HelloWorld::main",
+                       "**** Starting the TaskBrowser       ****");
     // Switch to user-interactive mode.
     TaskBrowser browser( &hello );
 
