@@ -7,6 +7,7 @@
 
 #include <netcdf.h>
 #include <iostream>
+#include <rtt/Logger.hpp>
 using namespace std;
 
 namespace RTT
@@ -122,14 +123,18 @@ namespace RTT
            */
           retval = nc_inq_varid(ncid, sname.c_str(), &varid);
           if (retval)
-            log(Error) << "Could not get variable id of " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not get variable id of %s, error %d",
+                               sname.c_str(), retval);
 
           /**
            * Write a single data value
            */
           retval = nc_put_var1_schar(ncid, varid, &index, &value);
           if(retval)
-            log(Error) << "Could not write variable " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not write variable %s, error %d",
+                               sname.c_str(), retval);
         }
 
         /**
@@ -148,14 +153,18 @@ namespace RTT
            */
           retval = nc_inq_varid(ncid, sname.c_str(), &varid);
           if (retval)
-            log(Error) << "Could not get variable id of " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not get variable id of %s, error %d",
+                               sname.c_str(), retval);
 
           /**
            * Write a single data value
            */
           retval = nc_put_var1_short(ncid, varid, &index, &value);
           if(retval)
-            log(Error) << "Could not write variable " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not write variable %s, error %d",
+                               sname.c_str(), retval);
         }
 
         /**
@@ -173,14 +182,18 @@ namespace RTT
            */
           retval = nc_inq_varid(ncid, sname.c_str(), &varid);
           if (retval)
-            log(Error) << "Could not get variable id of " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not get variable id of %s, error %d",
+                               sname.c_str(), retval);
 
           /**
            * Write a single data value
            */
           retval = nc_put_var1_int(ncid, varid, &index, &value);
           if(retval)
-            log(Error) << "Could not write variable " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not write variable %s, error %d",
+                               sname.c_str(), retval);
         }
 
         /**
@@ -198,14 +211,18 @@ namespace RTT
            */
           retval = nc_inq_varid(ncid, sname.c_str(), &varid);
           if (retval)
-            log(Error) << "Could not get variable id of " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not get variable id of %s, error %d",
+                               sname.c_str(), retval);
 
           /**
            * Write a single data value
            */
           retval = nc_put_var1_float(ncid, varid, &index, &value);
           if(retval)
-            log(Error) << "Could not write variable " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not write variable %s, error %d",
+                               sname.c_str(), retval);
 
         }
 
@@ -224,14 +241,18 @@ namespace RTT
            */
           retval = nc_inq_varid(ncid, sname.c_str(), &varid);
           if (retval)
-            log(Error) << "Could not get variable id of " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not get variable id of %s, error %d",
+                               sname.c_str(), retval);
 
           /**
            * Write a single data value
            */
           retval = nc_put_var1_double(ncid, varid, &index, &value);
           if(retval)
-            log(Error) << "Could not write variable " << sname << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not write variable %s, error %d",
+                               sname.c_str(), retval);
         }    
 
         /**
@@ -255,11 +276,13 @@ namespace RTT
 
           retval = nc_inq_varid(ncid, name, &varid);
           if (retval)
-            log(Error) << "Could not get variable id of " << name << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not get variable id of %s, error %d", name, retval);
 
           retval = nc_put_vara_double(ncid, varid, start, count, &(v->rvalue().front()));
           if(retval)
-            log(Error) << "Could not write variable " << name << ", error " << retval <<endlog();
+            Logger::log().logf(Logger::Error, "NetcdfMarshaller::store",
+                               "Could not write variable %s, error %d", name, retval);
 
         }
 

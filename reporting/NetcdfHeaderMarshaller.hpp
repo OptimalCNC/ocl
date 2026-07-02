@@ -10,6 +10,7 @@
 #define DIMENSION_ARRAY 2
 
 #include <iostream>
+#include <rtt/Logger.hpp>
 using namespace std;
 
 namespace RTT
@@ -91,7 +92,8 @@ namespace RTT
         else {
           retval = nc_redef(ncid);
            if ( retval )
-             log(Error) << "Could not enter define mode in NetcdfHeaderMarshaller, error "<< retval <<endlog();
+             Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::serialize",
+                                "Could not enter define mode in NetcdfHeaderMarshaller, error %d", retval);
            else
              ncopen++;
         }
@@ -108,11 +110,13 @@ namespace RTT
          * Decrease counter, if zero enter data mode else stay in define mode 
          */
         if (--ncopen)
-          log(Info) << "Serializer still in progress" <<endlog();
+          Logger::log().logf(Logger::Info, "NetcdfHeaderMarshaller::serialize",
+                             "Serializer still in progress");
         else {
           retval = nc_enddef(ncid);
            if (retval)
-             log(Error) << "Could not leave define mode, error" << retval <<endlog();
+             Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::serialize",
+                                "Could not leave define mode, error %d", retval);
         }
       }
 
@@ -147,9 +151,12 @@ namespace RTT
         retval = nc_def_var(ncid, sname.c_str(), NC_BYTE, DIMENSION_VAR,
                     &dimsid, &varid);
         if ( retval )
-          log(Error) << "Could not create variable " << sname << ", error " << retval <<endlog();
+          Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::store",
+                             "Could not create variable %s, error %d",
+                             sname.c_str(), retval);
         else
-          log(Info) << "Variable "<< sname << " successfully created" <<endlog();
+          Logger::log().logf(Logger::Info, "NetcdfHeaderMarshaller::store",
+                             "Variable %s successfully created", sname.c_str());
       }
 
       /**
@@ -167,9 +174,12 @@ namespace RTT
         retval = nc_def_var(ncid, sname.c_str(), NC_SHORT, DIMENSION_VAR,
                     &dimsid, &varid);
         if ( retval )
-          log(Error) << "Could not create variable " << sname << ", error " << retval <<endlog();
+          Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::store",
+                             "Could not create variable %s, error %d",
+                             sname.c_str(), retval);
         else
-          log(Info) << "Variable "<< sname << " successfully created" <<endlog();
+          Logger::log().logf(Logger::Info, "NetcdfHeaderMarshaller::store",
+                             "Variable %s successfully created", sname.c_str());
       }
 
       /**
@@ -187,9 +197,12 @@ namespace RTT
         retval = nc_def_var(ncid, sname.c_str(), NC_INT, DIMENSION_VAR,
                     &dimsid, &varid);
         if ( retval )
-          log(Error) << "Could not create variable " << sname << ", error " << retval <<endlog();
+          Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::store",
+                             "Could not create variable %s, error %d",
+                             sname.c_str(), retval);
         else
-          log(Info) << "Variable "<< sname << " successfully created" <<endlog();
+          Logger::log().logf(Logger::Info, "NetcdfHeaderMarshaller::store",
+                             "Variable %s successfully created", sname.c_str());
       }
 
       /**
@@ -207,9 +220,12 @@ namespace RTT
         retval = nc_def_var(ncid, sname.c_str(), NC_FLOAT, DIMENSION_VAR,
                     &dimsid, &varid);
         if ( retval )
-          log(Error) << "Could not create variable " << sname << ", error " << retval <<endlog();
+          Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::store",
+                             "Could not create variable %s, error %d",
+                             sname.c_str(), retval);
         else
-          log(Info) << "Variable "<< sname << " successfully created" <<endlog();
+          Logger::log().logf(Logger::Info, "NetcdfHeaderMarshaller::store",
+                             "Variable %s successfully created", sname.c_str());
       }
 
       /**
@@ -228,9 +244,12 @@ namespace RTT
                     &dimsid, &varid);
 
         if ( retval )
-          log(Error) << "Could not create variable " << sname << ", error " << retval <<endlog();
+          Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::store",
+                             "Could not create variable %s, error %d",
+                             sname.c_str(), retval);
         else
-          log(Info) << "Variable "<< sname << " successfully created" <<endlog();
+          Logger::log().logf(Logger::Info, "NetcdfHeaderMarshaller::store",
+                             "Variable %s successfully created", sname.c_str());
       }
 
       /**
@@ -253,7 +272,9 @@ namespace RTT
         // create new dimension
         retval = nc_def_dim(ncid, dimname, v->rvalue().size(), &var_dim);
         if ( retval )
-          log(Error) << "Could not create new dimension for "<< dimname <<", error "<< retval <<endlog();
+          Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::store",
+                             "Could not create new dimension for %s, error %d",
+                             dimname, retval);
 
         // fill in dims
         dims[0] = dimsid;
@@ -262,9 +283,11 @@ namespace RTT
         retval = nc_def_var(ncid, name, NC_DOUBLE, DIMENSION_ARRAY,
                     dims, &varid);
         if ( retval )
-          log(Error) << "Could not create " << name << ", error " << retval <<endlog();
+          Logger::log().logf(Logger::Error, "NetcdfHeaderMarshaller::store",
+                             "Could not create %s, error %d", name, retval);
         else
-          log(Info) << "Variable "<< name << " successfully created" <<endlog();
+          Logger::log().logf(Logger::Info, "NetcdfHeaderMarshaller::store",
+                             "Variable %s successfully created", name);
       }
 
       std::string composeName(std::string propertyName)

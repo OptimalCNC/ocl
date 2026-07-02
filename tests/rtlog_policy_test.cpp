@@ -118,6 +118,8 @@ int main()
         {"deployment/CorbaDeploymentComponent.cpp", 1, 0},
         {"reporting/ReportingComponent.cpp", 1, 0},
         {"reporting/datasender.cpp", 1, 0},
+        {"reporting/NetcdfHeaderMarshaller.hpp", 1, 0},
+        {"reporting/NetcdfMarshaller.hpp", 1, 0},
         {"logging/LoggingService.cpp", 1, 0},
         {"deployment/DeploymentComponent.cpp", 220, 460},
         {"deployment/DeploymentComponent.cpp", 461, 720},
