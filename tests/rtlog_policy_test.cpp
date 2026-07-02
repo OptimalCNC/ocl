@@ -115,7 +115,8 @@ int main()
         {"taskbrowser/TaskBrowser.cpp", 1, 0},
         {"deployment/CorbaDeploymentComponent.cpp", 1, 0},
         {"deployment/DeploymentComponent.cpp", 220, 460},
-        {"deployment/DeploymentComponent.cpp", 461, 720}
+        {"deployment/DeploymentComponent.cpp", 461, 720},
+        {"deployment/DeploymentComponent.cpp", 721, 855}
     };
 
     std::vector<std::string> violations;

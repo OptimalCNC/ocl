@@ -791,28 +791,37 @@ namespace OCL
         ++nextGroup;    // whether succeed or fail
         if ( this->loadComponentsInGroup(configurationfile, thisGroup) ) {
             if ( root.empty() ) {
-                log(Warning) <<"No components loaded by DeploymentComponent from "<< configurationfile <<endlog();
+                Logger::log().logf(Logger::Warning, "DeploymentComponent::kickStart2",
+                                   "No components loaded by DeploymentComponent from %s",
+                                   configurationfile.c_str());
                 return true;
             }
             if (this->configureComponentsGroup(thisGroup) ) {
                 if (doStart) {
                     if ( this->startComponentsGroup(thisGroup) ) {
-                        log(Info) <<"Successfully loaded, configured and started components from "<< configurationfile <<endlog();
+                        Logger::log().logf(Logger::Info, "DeploymentComponent::kickStart2",
+                                           "Successfully loaded, configured and started components from %s",
+                                           configurationfile.c_str());
                         return true;
                     } else {
-                        log(Error) <<"Failed to start a component: aborting kick-start."<<endlog();
+                        Logger::log().logf(Logger::Error, "DeploymentComponent::kickStart2",
+                                           "Failed to start a component: aborting kick-start.");
                         startOk = false;
                     }
                 } else {
-                    log(Info) <<"Successfully loaded and configured (but did not start) components from "<< configurationfile <<endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::kickStart2",
+                                       "Successfully loaded and configured (but did not start) components from %s",
+                                       configurationfile.c_str());
                     return true;
                 }
             } else {
-                log(Error) <<"Failed to configure a component: aborting kick-start."<<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::kickStart2",
+                                   "Failed to configure a component: aborting kick-start.");
                 configureOk = false;
             }
         } else {
-            log(Error) <<"Failed to load a component: aborting kick-start."<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::kickStart2",
+                               "Failed to load a component: aborting kick-start.");
             loadOk = false;
         }
         return false;
@@ -837,18 +846,17 @@ namespace OCL
         bool cret = this->cleanupComponentsGroup(group);
         bool uret = this->unloadComponentsGroup(group);
         if ( sret && cret && uret) {
-            log(Info) << "Kick-out of group " << group << " successful."<<endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent::kickOutGroup",
+                               "Kick-out of group %d successful.", group);
             return true;
         }
         // Diagnostics:
-        log(Critical) << "Kick-out of group " << group << " failed: ";
-        if (!sret)
-            log(Critical) << " stopComponents() failed.";
-        if (!cret)
-            log(Critical) << " cleanupComponents() failed.";
-        if (!uret)
-            log(Critical) << " unloadComponents() failed.";
-        log(Critical) << endlog();
+        Logger::log().logf(Logger::Critical, "DeploymentComponent::kickOutGroup",
+                           "Kick-out of group %d failed:%s%s%s",
+                           group,
+                           !sret ? " stopComponents() failed." : "",
+                           !cret ? " cleanupComponents() failed." : "",
+                           !uret ? " unloadComponents() failed." : "");
         return false;
     }
 
