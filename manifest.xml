@@ -9,7 +9,6 @@
 
   <rosdep name="libncurses-dev" />
   <rosdep name="libreadline-dev" />
-  <depend package="log4cpp" />
   <rosdep name="lua-dev" />
   <rosdep name="netcdf" />
   <depend package="rtt" />

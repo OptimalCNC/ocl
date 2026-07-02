@@ -62,13 +62,10 @@
 *   <li>OCL::CorbaDeploymentComponent
 *   </ul>
 *                                                               
-* \subsection logging Logging Compnent:
-* 	Component for capturing real-time logging and two components for 
-*       creating log files: one to a file and one to standard output.
+* \subsection logging Logging Component:
+* 	Component for configuring and draining the RTT bounded logger.
 *   <ul>
 *   <li>OCL::LoggingService
-*   <li>OCL::FileAppender
-*   <li>OCL::ConsoleAppender
 *   </ul>
 *
 */

@@ -65,8 +65,7 @@ function upgrade()
         fi
         if [ -f $dir/manifest.xml ]; then
             tempfile=$(mktemp)
-            sed 's/<depend package=\"log4cpp\"/<rosdep name=\"log4cpp\"/;
-                 s/<depend package=\"ocl\"/<rosdep name=\"ocl\"/;
+            sed 's/<depend package=\"ocl\"/<rosdep name=\"ocl\"/;
                  s/<depend package=\"orogen\"/<rosdep name=\"orogen\"/;
                  s/<depend package=\"rtt\"/<rosdep name=\"rtt\"/;
                  s/<depend package=\"rtt_typelib\"/<rosdep name=\"rtt_typelib\"/;
@@ -264,4 +263,3 @@ fi
 
 echo "Package $pkgname created in directory $cwd/$pkgname"
 exit 0
-

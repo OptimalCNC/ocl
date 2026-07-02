@@ -83,18 +83,6 @@ ELSE ( EDITLINE_H  )
     SET( EDITLINE 0 CACHE INTERNAL "libedit" )
 ENDIF ( EDITLINE_H )
 
-find_package( Log4cpp ${OCL_VERSION} EXACT )
-if(LOG4CPP_FOUND)
-  message("Found orocos-log4cpp in ${LOG4CPP_INCLUDE_DIRS}")
-else(LOG4CPP_FOUND)
-  message("\n   orocos-log4cpp not found:\n * Is the version correct (${OCL_VERSION}) ?\n * Did you build & install it ?\n * Did you source env.sh ?\n")
-endif(LOG4CPP_FOUND)
-
-find_package( Log4cxx )
-if(LOG4CXX_FOUND)
-  message("Found log4cxx in ${LOG4CXX_INCLUDE_DIRS}")
-endif(LOG4CXX_FOUND)
-
 find_package(Boost COMPONENTS program_options filesystem system)
 
 # On win32, dynamically linking with boost_program_options requires
@@ -105,4 +93,3 @@ if(NOT Boost_USE_STATIC_LIBS)
 endif()
 
 include_directories( ${Boost_INCLUDE_DIR} )
-

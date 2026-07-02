@@ -19,7 +19,6 @@
 
   <depend>libncurses-dev</depend>
   <depend>libreadline-dev</depend>
-  <depend>log4cpp</depend>
   <depend>lua-dev</depend>
   <depend>netcdf</depend>
   <depend>rtt</depend>

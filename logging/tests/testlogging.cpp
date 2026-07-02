@@ -1,74 +1,24 @@
-// test mix of log4cpp and OCL::logging implementations
+#include "logging/LoggingService.hpp"
 
-#include <iostream>
-#include <log4cpp/HierarchyMaintainer.hh>
-#include "logging/Category.hpp"
+#include <rtt/Logger.hpp>
 
-using namespace RTT;
+#include <cassert>
 
-int main(int argc, char** argv)
+int main(int, char**)
 {
-    // use only OCL::logging Category's
-    log4cpp::HierarchyMaintainer::set_category_factory(
-        OCL::logging::Category::createOCLCategory);
+    OCL::logging::LoggingService service("LoggingService");
 
-    std::string name = "org.test.c1";
+    assert(service.setCategoryPriority("compat.category", RTT::Logger::Info));
+    assert(RTT::Logger::log().getLogLevel() == RTT::Logger::Info);
+    assert(service.getCategoryPriorityName("compat.category") == "INFO");
 
-    // what types do we get from the category itself?
-    std::cout << "\nFrom category???\n";
-    log4cpp::Category& category2 = log4cpp::Category::getInstance(name);
-    std::cout << "category2 type " << typeid(category2).name() << std::endl;
-    std::cout << "category2 ptype " << typeid(&category2).name() << std::endl;
+    assert(service.setLogLevel(RTT::Logger::Debug));
+    assert(RTT::Logger::log().getLogLevel() == RTT::Logger::Debug);
+    assert(service.getLogLevelName() == "DEBUG");
 
-    OCL::logging::Category* category = 
-        dynamic_cast<OCL::logging::Category*>(&category2);
-    if (0 != category)
-    {
-        std::cout << "category type " << typeid(*category).name() << std::endl;
-    }
-    else
-    {
-        std::cout << "Unable cast" << std::endl;
-    }
+    RTT::Logger::log().logf(RTT::Logger::Info, "testlogging",
+                            "RTT-backed logging service test");
+    service.drainLog();
 
-    // and directly?
-    std::cout << "\nDirectly ...\n";
-    category = dynamic_cast<OCL::logging::Category*>(
-        &log4cpp::Category::getInstance(name));
-    if (0 != category)
-    {
-        std::cout << "category type " << typeid(*category).name() << std::endl;
-    }
-    else
-    {
-        std::cout << "Unable cast" << std::endl;
-    }
-
-    // and through hierarchy maintainer?
-    std::cout << "\nThrough hierarchy maintainer ...\n";
-    log4cpp::Category* p = log4cpp::HierarchyMaintainer::getDefaultMaintainer().getExistingInstance(name);
-    std::cout << "category ptype " << typeid(p).name() << std::endl;
-    std::cout << "category type  " << typeid(*p).name() << std::endl;
-    category = dynamic_cast<OCL::logging::Category*>(p);
-    if (0 != category)
-    {
-        std::cout << "category type " << typeid(*category).name() << std::endl;
-    }
-    else
-    {
-        std::cout << "Unable cast" << std::endl;
-    }
-        
-    category = dynamic_cast<OCL::logging::Category*>(
-        log4cpp::HierarchyMaintainer::getDefaultMaintainer().getExistingInstance(name));
-    if (0 != category)
-    {
-        std::cout << "category type " << typeid(*category).name() << std::endl;
-    }
-    else
-    {
-        std::cout << "Unable cast" << std::endl;
-    }
-    
     return 0;
 }
