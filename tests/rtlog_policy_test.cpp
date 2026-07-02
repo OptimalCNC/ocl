@@ -120,6 +120,7 @@ int main()
         {"reporting/datasender.cpp", 1, 0},
         {"reporting/NetcdfHeaderMarshaller.hpp", 1, 0},
         {"reporting/NetcdfMarshaller.hpp", 1, 0},
+        {"reporting/TcpReporting.cpp", 1, 0},
         {"logging/LoggingService.cpp", 1, 0},
         {"helloworld/HelloWorld.cpp", 1, 0},
         {"deployment/DeploymentComponent.cpp", 220, 460},

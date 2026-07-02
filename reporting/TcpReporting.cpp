@@ -65,7 +65,8 @@ namespace OCL
                 _sock = ::socket(PF_INET, SOCK_STREAM, 0);
                 if( _sock < 0 )
                 {
-                    Logger::log() << Logger::Error << "Socket creation failed." << Logger::endl;
+                    Logger::log().logf(Logger::Error, "TcpReporting::ListenThread",
+                                       "Socket creation failed.");
                     return false;
                 }
 
@@ -95,14 +96,17 @@ namespace OCL
                     }
                     if( r >= 0 )
                     {
-                        Logger::log() << Logger::Info << "Port occupied, use port " << (_port+i-1) << " instead." << Logger::endl;
+                        Logger::log().logf(Logger::Info, "TcpReporting::ListenThread",
+                                           "Port occupied, use port %d instead.", _port+i-1);
                     } else {
                     #endif
                     if( errno == EADDRINUSE )
                     {
-                        Logger::log() << Logger::Error << "Binding of port failed: address already in use." << Logger::endl;
+                        Logger::log().logf(Logger::Error, "TcpReporting::ListenThread",
+                                           "Binding of port failed: address already in use.");
                     } else {
-                        Logger::log() << Logger::Error << "Binding of port failed with errno " << errno << Logger::endl;
+                        Logger::log().logf(Logger::Error, "TcpReporting::ListenThread",
+                                           "Binding of port failed with errno %d", errno);
                     }
                     ::close(_sock);
                     return false;
@@ -113,7 +117,8 @@ namespace OCL
 
                 if( ::listen(_sock, 2) < 0 )
                 {
-                    Logger::log() << Logger::Info << "Cannot listen on socket" << Logger::endl;
+                    Logger::log().logf(Logger::Info, "TcpReporting::ListenThread",
+                                       "Cannot listen on socket");
                     ::close(_sock);
                     return true;
                 }
@@ -127,7 +132,8 @@ namespace OCL
                     }
                     if( _accepting )
                     {
-                        Logger::log() << Logger::Info << "Incoming connection" << Logger::endl;
+                        Logger::log().logf(Logger::Info, "TcpReporting::ListenThread",
+                                           "Incoming connection");
                         _marshaller->addConnection( new Orocos::TCP::Socket(socket) );
                     }
                 }
@@ -141,7 +147,8 @@ namespace OCL
                 removeInstance();
                 _accepting = true;
                 _port = port;
-                Logger::log() << Logger::Info << "Starting server on port " << port << Logger::endl;
+                Logger::log().logf(Logger::Info, "TcpReporting::ListenThread",
+                                   "Starting server on port %u", static_cast<unsigned int>(port));
                 this->Activity::start();
             }
 
@@ -166,9 +173,12 @@ namespace OCL
               {
                   if( !listen() )
                   {
-                      Logger::log() << Logger::Error << "Could not listen on port " << _port << Logger::endl;
+                      Logger::log().logf(Logger::Error, "TcpReporting::ListenThread",
+                                         "Could not listen on port %u",
+                                         static_cast<unsigned int>(_port));
                   } else {
-                      Logger::log() << Logger::Info << "Shutting down server" << Logger::endl;
+                      Logger::log().logf(Logger::Info, "TcpReporting::ListenThread",
+                                         "Shutting down server");
                   }
               }
           }
@@ -236,7 +246,6 @@ namespace OCL
 
     bool TcpReporting::startHook()
     {
-        RTT::Logger::In in("TcpReporting::startup");
         fbody = new RTT::SocketMarshaller(this);
         this->addMarshaller( 0, fbody );
         ListenThread::createInstance( fbody, port );
