@@ -1564,7 +1564,6 @@ namespace OCL
 
     bool DeploymentComponent::configureComponents()
     {
-        RTT::Logger::In in("configureComponents");
         // do all groups
         bool valid = true;
         for (int group = 0; group <= nextGroup; ++group) {
@@ -1575,15 +1574,15 @@ namespace OCL
 
     bool DeploymentComponent::configureComponentsGroup(const int group)
     {
-        RTT::Logger::In in("configureComponents");
         if ( root.empty() ) {
-            RTT::Logger::log() << RTT::Logger::Error
-                          << "No components loaded by DeploymentComponent !" <<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                               "No components loaded by DeploymentComponent !");
             return false;
         }
 
         bool valid = true;
-        log(Info) << "Configuring components in group " << group << endlog();
+        Logger::log().logf(Logger::Info, "DeploymentComponent::configureComponentsGroup",
+                           "Configuring components in group %d", group);
 
         // Connect peers
         for (RTT::PropertyBag::iterator it= root.begin(); it!=root.end();it++) {
@@ -1597,7 +1596,8 @@ namespace OCL
 
             RTT::TaskContext* peer = compmap[comp.getName()].instance;
             if ( !peer ) {
-                log(Error) << "Peer not found: "<< comp.getName() <<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                                   "Peer not found: %s", comp.getName().c_str());
                 valid=false;
                 continue;
             }
@@ -1613,17 +1613,22 @@ namespace OCL
                     if ( nm.ready() )
                         {
                             if ( this->addPeer( compmap[comp.getName()].instance->getName(), nm.value() ) == false ) {
-                                log(Error) << this->getName() << " can't make " << nm.value() << " a peer of " <<
-                                    compmap[comp.getName()].instance->getName() << endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                                                   "%s can't make %s a peer of %s",
+                                                   this->getName().c_str(), nm.value().c_str(),
+                                                   compmap[comp.getName()].instance->getName().c_str());
                                 valid = false;
                             } else {
-                                log(Info) << this->getName() << " makes " << nm.value() << " a peer of " <<
-                                    compmap[comp.getName()].instance->getName() << endlog();
+                                Logger::log().logf(Logger::Info, "DeploymentComponent::configureComponentsGroup",
+                                                   "%s makes %s a peer of %s",
+                                                   this->getName().c_str(), nm.value().c_str(),
+                                                   compmap[comp.getName()].instance->getName().c_str());
                             }
                         }
                     else {
-                        log(Error) << "Wrong property type in Peers struct. Expected property of type 'string',"
-                                   << " got type "<< (*it)->getType() <<endlog();
+                        Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                                           "Wrong property type in Peers struct. Expected property of type 'string', got type %s",
+                                           (*it)->getType().c_str());
                         valid = false;
                     }
                 }
@@ -1675,7 +1680,9 @@ namespace OCL
 
             // do not configure when not stopped.
             if ( peer->getTaskState() > Stopped) {
-                log(Warning) << "Component "<< peer->getName()<< " doesn't need to be configured (already Running)." <<endlog();
+                Logger::log().logf(Logger::Warning, "DeploymentComponent::configureComponentsGroup",
+                                   "Component %s doesn't need to be configured (already Running).",
+                                   peer->getName().c_str());
                 continue;
             }
 
@@ -1686,10 +1693,14 @@ namespace OCL
                     RTT::Property<RTT::PropertyBag> props = *pf; // convert to type.
                     bool ret = updateProperties( *peer->properties(), props);
                     if (!ret) {
-                        log(Error) << "Failed to configure properties from main configuration file for component "<< comp.getName() <<endlog();
+                        Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                                           "Failed to configure properties from main configuration file for component %s",
+                                           comp.getName().c_str());
                         valid = false;
                     } else {
-                        log(Info) << "Configured Properties of "<< comp.getName() <<" from main configuration file." <<endlog();
+                        Logger::log().logf(Logger::Info, "DeploymentComponent::configureComponentsGroup",
+                                           "Configured Properties of %s from main configuration file.",
+                                           comp.getName().c_str());
                     }
                 }
             }
@@ -1708,10 +1719,14 @@ namespace OCL
                     else
                         ret = pl.load(filename);
                     if (!ret) {
-                        log(Error) << "Failed to configure properties for component "<< comp.getName() <<endlog();
+                        Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                                           "Failed to configure properties for component %s",
+                                           comp.getName().c_str());
                         valid = false;
                     } else {
-                        log(Info) << "Configured Properties of "<< comp.getName() << " from "<<filename<<endlog();
+                        Logger::log().logf(Logger::Info, "DeploymentComponent::configureComponentsGroup",
+                                           "Configured Properties of %s from %s",
+                                           comp.getName().c_str(), filename.c_str());
                         compmap[ comp.getName() ].loadedProperties = true;
                     }
                 }
@@ -1720,13 +1735,16 @@ namespace OCL
             // Attach activities
             if ( compmap[comp.getName()].act ) {
                 if ( peer->getActivity() ) {
-                    log(Info) << "Re-setting activity of "<< comp.getName() <<endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::configureComponentsGroup",
+                                       "Re-setting activity of %s", comp.getName().c_str());
                 } else {
-                    log(Info) << "Setting activity of "<< comp.getName() <<endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::configureComponentsGroup",
+                                       "Setting activity of %s", comp.getName().c_str());
                 }
                 if (peer->setActivity( compmap[comp.getName()].act ) == false ) {
                     valid = false;
-                    log(Error) << "Failed to set Activity of " << comp.getName() << endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                                       "Failed to set Activity of %s", comp.getName().c_str());
                 } else {
                     assert( peer->engine()->getActivity() == compmap[comp.getName()].act );
                     compmap[comp.getName()].act = 0; // drops ownership.
@@ -1763,12 +1781,16 @@ namespace OCL
                         {
                             OperationCaller<bool(void)> peerconfigure = peer->getOperation("configure");
                             if ( peerconfigure() == false) {
-                                log(Error) << "Component " << peer->getName() << " returns false in configure()" << endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                                                   "Component %s returns false in configure()",
+                                                   peer->getName().c_str());
                                 valid = false;
                             }
                         }
                     else
-                        log(Warning) << "Apparently component "<< peer->getName()<< " don't need to be configured (already Running)." <<endlog();
+                        Logger::log().logf(Logger::Warning, "DeploymentComponent::configureComponentsGroup",
+                                           "Apparently component %s don't need to be configured (already Running).",
+                                           peer->getName().c_str());
                 }
 
             // scan for connection changes due to ports created in configure()
@@ -1787,11 +1809,14 @@ namespace OCL
                 if ( group == cd->group && cd->loaded && cd->autoconf &&
                      (cd->instance->getTaskState() != TaskCore::Stopped) &&
                      (cd->instance->getTaskState() != TaskCore::Running))
-                    log(Error) << "Failed to configure component "<< cd->instance->getName()
-                               << ": state is " << cd->instance->getTaskState() <<endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponentsGroup",
+                                       "Failed to configure component %s: state is %d",
+                                       cd->instance->getName().c_str(),
+                                       static_cast<int>(cd->instance->getTaskState()));
             }
         } else {
-            log(Info) << "Configuration successful for group " << group << "." <<endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent::configureComponentsGroup",
+                               "Configuration successful for group %d.", group);
         }
 
         validConfig.set(valid);
@@ -1810,9 +1835,9 @@ namespace OCL
 
     bool DeploymentComponent::startComponentsGroup(const int group)
     {
-        RTT::Logger::In in("startComponentsGroup");
         if (validConfig.get() == false) {
-            log(Error) << "Not starting components with invalid configuration." <<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::startComponentsGroup",
+                               "Not starting components with invalid configuration.");
             return false;
         }
         bool valid = true;
@@ -1849,14 +1874,17 @@ namespace OCL
                 }
 
                 if ( it->instance == 0 ) {
-                    log(Error) << "Failed to start component "<< *cit << ": not found." << endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::startComponentsGroup",
+                                       "Failed to start component %s: not found.", cit->c_str());
                     continue;
                 }
                 if ( it->autostart && it->instance->getTaskState() != base::TaskCore::Running )
-                    log(Error) << "Failed to start component "<< it->instance->getName() <<endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::startComponentsGroup",
+                                       "Failed to start component %s", it->instance->getName().c_str());
             }
         } else {
-                log(Info) << "Startup of 'AutoStart' components successful for group " << group << "." <<endlog();
+                Logger::log().logf(Logger::Info, "DeploymentComponent::startComponentsGroup",
+                                   "Startup of 'AutoStart' components successful for group %d.", group);
         }
         return valid;
     }
