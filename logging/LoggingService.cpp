@@ -59,7 +59,8 @@ LoggingService::~LoggingService()
 
 bool LoggingService::configureHook()
 {
-    log(Debug) << "Configuring LoggingService" << endlog();
+    Logger::log().logf(Logger::Debug, "LoggingService::configureHook",
+                       "Configuring LoggingService");
 
     // set the priority/level for each category
 
@@ -72,8 +73,9 @@ bool LoggingService::configureHook()
         Property<std::string>* category = dynamic_cast<Property<std::string>* >( *it );
         if ( !category )
         {
-            log(Error) << "Expected Property '"
-                       << (*it)->getName() << "' to be of type string." << endlog();
+            Logger::log().logf(Logger::Error, "LoggingService::configureHook",
+                               "Expected Property '%s' to be of type string.",
+                               (*it)->getName().c_str());
         }
         else 
         {
@@ -96,19 +98,21 @@ bool LoggingService::configureHook()
             catch (std::invalid_argument)
             {
                 // \todo more descriptive
-                log(Error) << "Bad level name: " << levelName << endlog();
+                Logger::log().logf(Logger::Error, "LoggingService::configureHook",
+                                   "Bad level name: %s", levelName.c_str());
                 return false;
             }
             
-            log(Debug) << "Getting category '" << categoryName << "'" << endlog();
+            Logger::log().logf(Logger::Debug, "LoggingService::configureHook",
+                               "Getting category '%s'", categoryName.c_str());
             // will create category if not exists
             log4cpp::Category& category =
                 log4cpp::Category::getInstance(categoryName);
 
             category.setPriority(priority);
-            log(Info) << "Category '" << categoryName 
-                      << "' has priority '" << levelName << "'"
-                      << endlog();
+            Logger::log().logf(Logger::Info, "LoggingService::configureHook",
+                               "Category '%s' has priority '%s'",
+                               categoryName.c_str(), levelName.c_str());
         }
     }
 
@@ -120,7 +124,9 @@ bool LoggingService::configureHook()
             port->disconnect();
     }
     if ( !active_appenders.empty() ) 
-        log(Warning) <<"Reconfiguring LoggingService '"<<getName() << "': I've removed all existing Appender connections and will now rebuild them."<<endlog();
+        Logger::log().logf(Logger::Warning, "LoggingService::configureHook",
+                           "Reconfiguring LoggingService '%s': I've removed all existing Appender connections and will now rebuild them.",
+                           getName().c_str());
     active_appenders.clear();
 
 	// set the additivity of each category
@@ -132,8 +138,9 @@ bool LoggingService::configureHook()
         Property<bool>* category = dynamic_cast<Property<bool>* >( *it );
         if ( !category )
         {
-            log(Error) << "Expected Property '"
-                       << (*it)->getName() << "' to be of type boolean." << endlog();
+            Logger::log().logf(Logger::Error, "LoggingService::configureHook",
+                               "Expected Property '%s' to be of type boolean.",
+                               (*it)->getName().c_str());
         }
         else
         {
@@ -142,15 +149,16 @@ bool LoggingService::configureHook()
 
             // "" == categoryName implies the root category.
 
-            log(Debug) << "Getting category '" << categoryName << "'" << endlog();
+            Logger::log().logf(Logger::Debug, "LoggingService::configureHook",
+                               "Getting category '%s'", categoryName.c_str());
             // will create category if not exists
             log4cpp::Category& category =
             log4cpp::Category::getInstance(categoryName);
 
             category.setAdditivity(additivity);
-            log(Info) << "Category '" << categoryName
-                      << "' has additivity '" << std::string(additivity ? "on":"off") << "'"
-                      << endlog();
+            Logger::log().logf(Logger::Info, "LoggingService::configureHook",
+                               "Category '%s' has additivity '%s'",
+                               categoryName.c_str(), additivity ? "on" : "off");
         }
     }
 
@@ -164,8 +172,9 @@ bool LoggingService::configureHook()
         Property<std::string>* association = dynamic_cast<Property<std::string>* >( *it );
         if ( !association )
         {
-            log(Error) << "Expected Property '"
-                       << (*it)->getName() << "' to be of type string." << endlog();
+            Logger::log().logf(Logger::Error, "LoggingService::configureHook",
+                               "Expected Property '%s' to be of type string.",
+                               (*it)->getName().c_str());
         }
         // \todo else if name or level are empty
         else 
@@ -179,7 +188,9 @@ bool LoggingService::configureHook()
                 dynamic_cast<OCL::logging::Category*>(&p);
             if (0 == category)
             {
-                log(Error) << "Category '" << categoryName << "' is not an OCL category: type is '" << typeid(p).name() << "'" << endlog();
+                Logger::log().logf(Logger::Error, "LoggingService::configureHook",
+                                   "Category '%s' is not an OCL category: type is '%s'",
+                                   categoryName.c_str(), typeid(p).name());
                 ok = false;
                 break;
             }
@@ -198,32 +209,33 @@ bool LoggingService::configureHook()
                     ConnPolicy cp = ConnPolicy::buffer(100,ConnPolicy::LOCK_FREE,false,false);
                     if ( appenderPort->connectTo( &(category->log_port), cp) )
                     {
-                        std::stringstream   str;
-                        str << "Category '" << categoryName
-                            << "' has appender '" << appenderName << "'" 
-                            << " with level "
-                            << log4cpp::Priority::getPriorityName(category->getPriority());
-                        log(Info) << str.str() << endlog();
-//                        std::cout << str.str() << std::endl;
+                        const std::string level = log4cpp::Priority::getPriorityName(category->getPriority());
+                        Logger::log().logf(Logger::Info, "LoggingService::configureHook",
+                                           "Category '%s' has appender '%s' with level %s",
+                                           categoryName.c_str(), appenderName.c_str(), level.c_str());
                         active_appenders.push_back(appenderName);
                     }
                     else
                     {
-                        log(Error) << "Failed to connect port to appender '" << appenderName << "'" << endlog();
+                        Logger::log().logf(Logger::Error, "LoggingService::configureHook",
+                                           "Failed to connect port to appender '%s'",
+                                           appenderName.c_str());
                         ok = false;
                         break;
                     }
                 }
                 else
                 {
-                    log(Error) << "Failed to find log port in appender" << endlog();
+                    Logger::log().logf(Logger::Error, "LoggingService::configureHook",
+                                       "Failed to find log port in appender");
                     ok = false;
                     break;
                 }
             }
             else
             {
-                log(Error) << "Could not find appender '" << appenderName << "'" << endlog();
+                Logger::log().logf(Logger::Error, "LoggingService::configureHook",
+                                   "Could not find appender '%s'", appenderName.c_str());
                 ok = false;
                 break;
             }
@@ -244,14 +256,18 @@ bool LoggingService::setCategoryPriority(const std::string& name,
             c->setPriority(priority);
             const std::string level = log4cpp::Priority::getPriorityName(priority);
             rc = true;
-            log(Info)  << "Category '" << name << "' set to priority '" << level << "'"  << endlog();
+            Logger::log().logf(Logger::Info, "LoggingService::setCategoryPriority",
+                               "Category '%s' set to priority '%s'",
+                               name.c_str(), level.c_str());
         } catch (...) {
-            log(Error) << "Priority value '" << priority << "' is not known!" << endlog();
+            Logger::log().logf(Logger::Error, "LoggingService::setCategoryPriority",
+                               "Priority value '%d' is not known!", priority);
         }
     }
     else
     {
-        log(Error) << "Could not find category '" << name << "'" << endlog();
+        Logger::log().logf(Logger::Error, "LoggingService::setCategoryPriority",
+                           "Could not find category '%s'", name.c_str());
     }
     return rc;
 }
@@ -264,16 +280,20 @@ std::string LoggingService::getCategoryPriorityName(const std::string& name)
     {
         try {
             rc = log4cpp::Priority::getPriorityName(c->getPriority());
-            log(Info)  << "Category '" << name << "' has priority '" << rc << "'" << endlog();
+            Logger::log().logf(Logger::Info, "LoggingService::getCategoryPriorityName",
+                               "Category '%s' has priority '%s'",
+                               name.c_str(), rc.c_str());
         } catch (...) {
             rc = "UNKNOWN PRIORITY";
-            log(Error) << "Category '" << name << "' has unknown priority!" << endlog();
+            Logger::log().logf(Logger::Error, "LoggingService::getCategoryPriorityName",
+                               "Category '%s' has unknown priority!", name.c_str());
         }
     }
     else
     {
         rc = "UNKNOWN CATEGORY";
-        log(Error) << "Could not find category '" << name << "'" << endlog();
+        Logger::log().logf(Logger::Error, "LoggingService::getCategoryPriorityName",
+                           "Could not find category '%s'", name.c_str());
     }
     return rc;
 }
@@ -285,35 +305,36 @@ void LoggingService::logCategories()
         log4cpp::Category::getCurrentCategories();
     assert(categories);
     std::vector<log4cpp::Category*>::iterator   iter;
-    log(Info) << "Number categories = " << (int)categories->size() << endlog();
+    Logger::log().logf(Logger::Info, "LoggingService::logCategories",
+                       "Number categories = %d", static_cast<int>(categories->size()));
     for (iter = categories->begin(); iter != categories->end(); ++iter)
     {
-        std::stringstream str;
-
         OCL::logging::Category* c = dynamic_cast<OCL::logging::Category*>(*iter);
-        str
-            << "Category '" << (*iter)->getName() << "', level="
-            << log4cpp::Priority::getPriorityName((*iter)->getPriority())
-            << ", typeid='"
-            << typeid(*iter).name()
-            << "', type really is '" 
-            << std::string(0 != c ? "OCL::Category" : "log4cpp::Category")
-            << "', additivity=" << (const char*)((*iter)->getAdditivity()?"yes":"no");
-        if (0 != c)
-        {
-            str << ", port=" << (c->log_port.connected() ? "connected" : "not connected");
-        }
+        const std::string level = log4cpp::Priority::getPriorityName((*iter)->getPriority());
+        const char* type = 0 != c ? "OCL::Category" : "log4cpp::Category";
+        const char* additivity = (*iter)->getAdditivity() ? "yes" : "no";
+        const char* port = 0 != c ? (c->log_port.connected() ? "connected" : "not connected") : "";
         log4cpp::Category* p = (*iter)->getParent();
-        if (p)
-        {
-            str << ", parent name='" << p->getName() << "'";
-        }
+        if (0 != c && p)
+            Logger::log().logf(Logger::Info, "LoggingService::logCategories",
+                               "Category '%s', level=%s, typeid='%s', type really is '%s', additivity=%s, port=%s, parent name='%s'",
+                               (*iter)->getName().c_str(), level.c_str(), typeid(*iter).name(), type,
+                               additivity, port, p->getName().c_str());
+        else if (0 != c)
+            Logger::log().logf(Logger::Info, "LoggingService::logCategories",
+                               "Category '%s', level=%s, typeid='%s', type really is '%s', additivity=%s, port=%s, No parent",
+                               (*iter)->getName().c_str(), level.c_str(), typeid(*iter).name(), type,
+                               additivity, port);
+        else if (p)
+            Logger::log().logf(Logger::Info, "LoggingService::logCategories",
+                               "Category '%s', level=%s, typeid='%s', type really is '%s', additivity=%s, parent name='%s'",
+                               (*iter)->getName().c_str(), level.c_str(), typeid(*iter).name(), type,
+                               additivity, p->getName().c_str());
         else
-        {
-            str << ", No parent";
-        }
-
-        log(Info) << str.str() << endlog();
+            Logger::log().logf(Logger::Info, "LoggingService::logCategories",
+                               "Category '%s', level=%s, typeid='%s', type really is '%s', additivity=%s, No parent",
+                               (*iter)->getName().c_str(), level.c_str(), typeid(*iter).name(), type,
+                               additivity);
     }
 }
    
