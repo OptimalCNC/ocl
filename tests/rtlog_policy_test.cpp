@@ -91,7 +91,9 @@ namespace
         };
         return containsAny(code, stream_log_starts, sizeof(stream_log_starts) / sizeof(stream_log_starts[0])) ||
                code.find("endlog") != std::string::npos ||
-               code.find("Logger::In(") != std::string::npos ||
+               (code.find("Logger::In(") != std::string::npos ||
+                code.find("Logger::In ") != std::string::npos ||
+                code.find("Logger::In\t") != std::string::npos) ||
                code.find("Logger::endl") != std::string::npos ||
                code.find("Logger::nl") != std::string::npos;
     }
@@ -122,7 +124,8 @@ int main()
         {"deployment/DeploymentComponent.cpp", 1226, 1445},
         {"deployment/DeploymentComponent.cpp", 1446, 1545},
         {"deployment/DeploymentComponent.cpp", 1546, 1865},
-        {"deployment/DeploymentComponent.cpp", 1866, 2034}
+        {"deployment/DeploymentComponent.cpp", 1866, 2034},
+        {"deployment/DeploymentComponent.cpp", 2035, 2205}
     };
 
     std::vector<std::string> violations;

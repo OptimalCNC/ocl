@@ -2035,26 +2035,22 @@ namespace OCL
 
     bool DeploymentComponent::import(const std::string& package)
     {
-        RTT::Logger::In in("import");
         return ComponentLoader::Instance()->import( package, "" ); // search in existing search paths
     }
 
     void DeploymentComponent::path(const std::string& path)
     {
-        RTT::Logger::In in("path");
         ComponentLoader::Instance()->setComponentPath( ComponentLoader::Instance()->getComponentPath() + path );
         PluginLoader::Instance()->setPluginPath( PluginLoader::Instance()->getPluginPath() + path );
     }
 
     bool DeploymentComponent::loadLibrary(const std::string& name)
     {
-        RTT::Logger::In in("loadLibrary");
         return PluginLoader::Instance()->loadLibrary(name) || ComponentLoader::Instance()->loadLibrary(name);
     }
 
     bool DeploymentComponent::reloadLibrary(const std::string& name)
     {
-        RTT::Logger::In in("reloadLibrary");
         return ComponentLoader::Instance()->reloadLibrary(name);
     }
 
@@ -2063,7 +2059,9 @@ namespace OCL
         if ((name == getName()) || (name == "this"))
             peer = this;
         else if ( (peer = getPeer(name)) == 0) {
-            log(Error)<<"No such peer: "<< name<< ". Can not load service '"<<type<<"'."<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::loadService",
+                               "No such peer: %s. Can not load service '%s'.",
+                               name.c_str(), type.c_str());
             return false;
         }
         // note: in case the service is not exposed as a 'service' object with the same name,
@@ -2076,13 +2074,13 @@ namespace OCL
     // or type is a shared library or it is a class type.
     bool DeploymentComponent::loadComponent(const std::string& name, const std::string& type)
     {
-        RTT::Logger::In in("loadComponent");
-
         if ( type == "RTT::PropertyBag" )
             return false; // It should be present as peer.
 
         if ( this->getPeer(name) || ( compmap.find(name) != compmap.end() && compmap[name].instance != 0) ) {
-            log(Error) <<"Failed to load component with name "<<name<<": already present as peer or loaded."<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponent",
+                               "Failed to load component with name %s: already present as peer or loaded.",
+                               name.c_str());
             return false;
         }
 
@@ -2097,7 +2095,9 @@ namespace OCL
         comps.push_back(name);
 
         if (!this->componentLoaded( instance ) ) {
-            log(Error) << "This deployer type refused to connect to "<< instance->getName() << ": aborting !" << endlog(Error);
+            Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponent",
+                               "This deployer type refused to connect to %s: aborting !",
+                               instance->getName().c_str());
             compmap[name].instance = 0;
             ComponentLoader::Instance()->unloadComponent( instance );
             return false;
@@ -2105,7 +2105,8 @@ namespace OCL
 
         // unlikely that this fails (checked at entry)!
         this->addPeer( instance, name );
-        log(Info) << "Adding "<< name << " as new peer:  OK."<< endlog(Info);
+        Logger::log().logf(Logger::Info, "DeploymentComponent::loadComponent",
+                           "Adding %s as new peer:  OK.", name.c_str());
 
         compmap[name].loaded = true;
 
@@ -2127,11 +2128,14 @@ namespace OCL
                 if (!it->proxy ) {
                     // allow subclasses to do cleanup too.
                     componentUnloaded( it->instance );
-                    log(Debug) << "Disconnecting " <<name <<endlog();
+                    Logger::log().logf(Logger::Debug, "DeploymentComponent::unloadComponentImpl",
+                                       "Disconnecting %s", name.c_str());
                     it->instance->disconnect();
-                    log(Debug) << "Terminating " <<name <<endlog();
+                    Logger::log().logf(Logger::Debug, "DeploymentComponent::unloadComponentImpl",
+                                       "Terminating %s", name.c_str());
                 } else
-                    log(Debug) << "Removing proxy for " <<name <<endlog();
+                    Logger::log().logf(Logger::Debug, "DeploymentComponent::unloadComponentImpl",
+                                       "Removing proxy for %s", name.c_str());
 
                 // Lookup and erase port+owner from conmap.
                 for( ConMap::iterator cmit = conmap.begin(); cmit != conmap.end(); ++cmit) {
@@ -2156,9 +2160,11 @@ namespace OCL
                 it->act = 0;
                 ComponentLoader::Instance()->unloadComponent( it->instance );
                 it->instance = 0;
-                log(Info) << "Disconnected and destroyed "<< name <<endlog();
+                Logger::log().logf(Logger::Info, "DeploymentComponent::unloadComponentImpl",
+                                   "Disconnected and destroyed %s", name.c_str());
             } else {
-                log(Error) << "Could not unload Component "<< name <<": still running." <<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::unloadComponentImpl",
+                                   "Could not unload Component %s: still running.", name.c_str());
                 valid=false;
             }
         }
@@ -2182,7 +2188,9 @@ namespace OCL
         CompMap::iterator it;
             // no such peer: try looking for the map name
             if ( compmap.count( name ) == 0 || compmap[name].loaded == false ) {
-                log(Error) << "Can't unload component '"<<name<<"': not loaded by "<<this->getName()<<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::unloadComponent",
+                                   "Can't unload component '%s': not loaded by %s",
+                                   name.c_str(), this->getName().c_str());
                 return false;
                 }
 
@@ -2192,7 +2200,8 @@ namespace OCL
         if ( this->unloadComponentImpl( it ) == false )
             return false;
 
-        log(Info) << "Successfully unloaded component "<<name<<"."<<endlog();
+        Logger::log().logf(Logger::Info, "DeploymentComponent::unloadComponent",
+                           "Successfully unloaded component %s.", name.c_str());
         return true;
     }
 
