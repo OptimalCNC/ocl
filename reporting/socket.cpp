@@ -28,6 +28,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <unistd.h>
 #include <rtt/Logger.hpp>
 #include <string.h>
 #include "socket.hpp"
