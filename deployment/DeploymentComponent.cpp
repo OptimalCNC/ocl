@@ -2495,7 +2495,6 @@ namespace OCL
 
     void DeploymentComponent::kickOut(const std::string& config_file)
     {
-        RTT::Logger::In in("kickOut");
         RTT::PropertyBag from_file;
         RTT::Property<std::string>  import_file;
         std::vector<std::string> deleted_components_type;
@@ -2512,26 +2511,31 @@ namespace OCL
                 deletePropertyBag( from_file );
             }
             else {
-                log(Error)<< "Some error occured while parsing "<< config_file <<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::kickOut",
+                                   "Some error occured while parsing %s",
+                                   config_file.c_str());
             }
         } catch (...)
             {
-                log(Error)<< "Uncaught exception in kickOut() !"<< endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::kickOut",
+                                   "Uncaught exception in kickOut() !");
             }
     }
 
     bool DeploymentComponent::cleanupComponent(RTT::TaskContext *instance)
     {
-        RTT::Logger::In in("cleanupComponent");
         bool valid = true;
         // 1. Cleanup a single activities, give components chance to cleanup.
         if (instance) {
             if ( instance->getTaskState() <= base::TaskCore::Stopped ) {
 		OperationCaller<bool(void)> instancecleanup = instance->getOperation("cleanup");
 		instancecleanup();
-                log(Info) << "Cleaned up "<< instance->getName() <<endlog();
+                Logger::log().logf(Logger::Info, "DeploymentComponent::cleanupComponent",
+                                   "Cleaned up %s", instance->getName().c_str());
             } else {
-                log(Error) << "Could not cleanup Component "<< instance->getName() << " (not Stopped)"<<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::cleanupComponent",
+                                   "Could not cleanup Component %s (not Stopped)",
+                                   instance->getName().c_str());
                 valid = false;
             }
         }
@@ -2540,17 +2544,19 @@ namespace OCL
 
     bool DeploymentComponent::configureComponent(RTT::TaskContext *instance)
     {
-        RTT::Logger::In in("configureComponent");
         bool valid = false;
 
         if ( instance ) {
             OperationCaller<bool(void)> instanceconfigure = instance->getOperation("configure");
             if(instanceconfigure()) {
-                log(Info) << "Configured " << instance->getName()<<endlog();
+                Logger::log().logf(Logger::Info, "DeploymentComponent::configureComponent",
+                                   "Configured %s", instance->getName().c_str());
                 valid = true;
             }
             else {
-                log(Error) << "Could not configure loaded Component "<< instance->getName() <<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::configureComponent",
+                                   "Could not configure loaded Component %s",
+                                   instance->getName().c_str());
             }
         }
         return valid;
@@ -2558,18 +2564,20 @@ namespace OCL
 
     bool DeploymentComponent::startComponent(RTT::TaskContext *instance)
     {
-        RTT::Logger::In in("startComponent");
         bool valid = false;
 
         if ( instance ) {
             OperationCaller<bool(void)> instancestart = instance->getOperation("start");
             if ( instance->isRunning() ||
                  instancestart() ) {
-                log(Info) << "Started "<< instance->getName() <<endlog();
+                Logger::log().logf(Logger::Info, "DeploymentComponent::startComponent",
+                                   "Started %s", instance->getName().c_str());
                 valid = true;
             }
             else {
-                log(Error) << "Could not start loaded Component "<< instance->getName() <<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::startComponent",
+                                   "Could not start loaded Component %s",
+                                   instance->getName().c_str());
             }
         }
         return valid;
@@ -2577,17 +2585,19 @@ namespace OCL
 
     bool DeploymentComponent::stopComponent(RTT::TaskContext *instance)
     {
-        RTT::Logger::In in("stopComponent");
         bool valid = true;
 
         if ( instance ) {
 	    OperationCaller<bool(void)> instancestop = instance->getOperation("stop");
             if ( !instance->isRunning() ||
                  instancestop() ) {
-                log(Info) << "Stopped "<< instance->getName() <<endlog();
+                Logger::log().logf(Logger::Info, "DeploymentComponent::stopComponent",
+                                   "Stopped %s", instance->getName().c_str());
             }
             else {
-                log(Error) << "Could not stop loaded Component "<< instance->getName() <<endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::stopComponent",
+                                   "Could not stop loaded Component %s",
+                                   instance->getName().c_str());
                 valid = false;
             }
         }
@@ -2596,12 +2606,12 @@ namespace OCL
 
     bool DeploymentComponent::kickOutComponent(const std::string& comp_name)
     {
-        RTT::Logger::In in("kickOutComponent");
-
         RTT::TaskContext* peer = compmap.count(comp_name) ? compmap[ comp_name ].instance : 0;
 
         if ( !peer ) {
-            log(Error) << "Component not loaded by this Deployer: "<< comp_name <<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::kickOutComponent",
+                               "Component not loaded by this Deployer: %s",
+                               comp_name.c_str());
             return false;
         }
         stopComponent( peer );
