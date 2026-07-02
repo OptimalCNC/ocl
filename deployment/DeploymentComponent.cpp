@@ -1275,13 +1275,16 @@ namespace OCL
                         if ( comp.value().find("Peers") != 0) {
                             RTT::Property<RTT::PropertyBag> nm = comp.value().find("Peers");
                             if ( !nm.ready() ) {
-                                log(Error)<<"RTT::Property 'Peers' must be a 'struct', was type "<< comp.value().find("Peers")->getType() << endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                   "RTT::Property 'Peers' must be a 'struct', was type %s",
+                                                   comp.value().find("Peers")->getType().c_str());
                                 valid = false;
                             } else {
                                 for (RTT::PropertyBag::const_iterator it= nm.rvalue().begin(); it != nm.rvalue().end();it++) {
                                     RTT::Property<std::string> pr = *it;
                                     if ( !pr.ready() ) {
-                                        log(Error)<<"RTT::Property 'Peer' does not have type 'string'."<<endlog();
+                                        Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                           "RTT::Property 'Peer' does not have type 'string'.");
                                         valid = false;
                                         continue;
                                     }
@@ -1293,18 +1296,21 @@ namespace OCL
                         if ( comp.value().find("Activity") != 0) {
                             RTT::Property<RTT::PropertyBag> nm = comp.value().find("Activity");
                             if ( !nm.ready() ) {
-                                log(Error)<<"RTT::Property 'Activity' must be a 'struct'."<<endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                   "RTT::Property 'Activity' must be a 'struct'.");
                                 valid = false;
                             } else {
                                 if ( nm.rvalue().getType() == "PeriodicActivity" ) {
                                     RTT::Property<double> per = nm.rvalue().getProperty("Period"); // work around RTT 1.0.2 bug.
                                     if ( !per.ready() ) {
-                                        log(Error)<<"Please specify period <double> of PeriodicActivity."<<endlog();
+                                        Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                           "Please specify period <double> of PeriodicActivity.");
                                         valid = false;
                                     }
                                     RTT::Property<int> prio = nm.rvalue().getProperty("Priority"); // work around RTT 1.0.2 bug
                                     if ( !prio.ready() ) {
-                                        log(Error)<<"Please specify priority <short> of PeriodicActivity."<<endlog();
+                                        Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                           "Please specify priority <short> of PeriodicActivity.");
                                         valid = false;
                                     }
 
@@ -1335,7 +1341,8 @@ namespace OCL
                                         }
                                         RTT::Property<int> prio = nm.rvalue().getProperty("Priority");
                                         if ( !prio.ready() ) {
-                                            log(Error)<<"Please specify priority <short> of Activity."<<endlog();
+                                            Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                               "Please specify priority <short> of Activity.");
                                             valid = false;
                                         }
 
@@ -1386,7 +1393,8 @@ namespace OCL
 
                                                     RTT::Property<int> prio = nm.rvalue().getProperty("Priority");
                                                     if ( !prio.ready() ) {
-                                                        log(Error)<<"Please specify priority <short> of FileDescriptorActivity."<<endlog();
+                                                        Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                                           "Please specify priority <short> of FileDescriptorActivity.");
                                                         valid = false;
                                                     }
 
@@ -1408,7 +1416,9 @@ namespace OCL
                                                         this->setNamedActivity(comp.getName(), nm.rvalue().getType(), per.get(), prio.get(), scheduler, cpu_affinity );
                                                     }
                                                 } else {
-                                                    log(Error) << "Unknown activity type: " << nm.rvalue().getType()<<endlog();
+                                                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                                                       "Unknown activity type: %s",
+                                                                       nm.rvalue().getType().c_str());
                                                     valid = false;
                                                 }
                             }
@@ -1423,7 +1433,9 @@ namespace OCL
                         string delimiter("@!#?<!");
                         bool ret = updateProperty( root, from_file, comp.getName(), delimiter );
                         if (!ret) {
-                            log(Error) << "Failed to store deployment properties for component " << comp.getName() <<endlog();
+                            Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                               "Failed to store deployment properties for component %s",
+                                               comp.getName().c_str());
                             valid = false;
                         }
                     }
@@ -1432,12 +1444,15 @@ namespace OCL
                 }
             else
                 {
-                    log(Error)<< "Some error occured while parsing "<< configurationfile <<endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                       "Some error occured while parsing %s",
+                                       configurationfile.c_str());
                     failure = true;
                 }
         } catch (...)
             {
-                log(Error)<< "Uncaught exception in loadcomponents() !"<< endlog();
+                Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponents",
+                                   "Uncaught exception in loadcomponents() !");
                 failure = true;
             }
         validConfig.set(valid);
