@@ -492,8 +492,9 @@ namespace OCL
     	string component = strs.front();
         RTT::TaskContext *tc = (((component == this->getName()) || (component == "this")) ? this : getPeer(component));
         if (!tc) {
-    		log(Error) << "No such component: '"<< component <<"'" ;
-    		log(Error)<< " when looking for port '" << names <<"'" <<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::stringToPort",
+                               "No such component: '%s' when looking for port '%s'",
+                               component.c_str(), names.c_str());
     		return 0;
     	}
     	// component is peer or self:
@@ -510,12 +511,16 @@ namespace OCL
     			strs.erase( strs.begin() );
     	}
     	if (!serv) {
-    		log(Error) <<"No such service: '"<< strs.front() <<"' while looking for port '"<< names<<"'"<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::stringToPort",
+                               "No such service: '%s' while looking for port '%s'",
+                               strs.front().c_str(), names.c_str());
     		return 0;
     	}
     	ret = serv->getPort(strs.front());
     	if (!ret) {
-    		log(Error) <<"No such port: '"<< strs.front() <<"' while looking for port '"<< names<<"'"<<endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::stringToPort",
+                               "No such port: '%s' while looking for port '%s'",
+                               strs.front().c_str(), names.c_str());
     	}
 
     	return ret;
@@ -523,16 +528,17 @@ namespace OCL
 
     bool DeploymentComponent::connectPorts(const std::string& one, const std::string& other)
     {
-	RTT::Logger::In in("connectPorts");
         RTT::TaskContext* a, *b;
         a = getPeer(one);
         b = getPeer(other);
         if ( !a ) {
-            log(Error) << one <<" could not be found."<< endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectPorts",
+                               "%s could not be found.", one.c_str());
             return false;
         }
         if ( !b ) {
-            log(Error) << other <<" could not be found."<< endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectPorts",
+                               "%s could not be found.", other.c_str());
             return false;
         }
 
@@ -542,7 +548,6 @@ namespace OCL
     bool DeploymentComponent::connectPorts(const std::string& one, const std::string& one_port,
                                            const std::string& other, const std::string& other_port)
     {
-	RTT::Logger::In in("connectPorts");
 		Service::shared_ptr a,b;
 		a = stringToService(one);
 		b = stringToService(other);
@@ -552,28 +557,35 @@ namespace OCL
         ap = a->getPort(one_port);
         bp = b->getPort(other_port);
         if ( !ap ) {
-            log(Error) << one <<" does not have a port "<<one_port<< endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectPorts",
+                               "%s does not have a port %s", one.c_str(), one_port.c_str());
             return false;
         }
         if ( !bp ) {
-            log(Error) << other <<" does not have a port "<<other_port<< endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectPorts",
+                               "%s does not have a port %s", other.c_str(), other_port.c_str());
             return false;
         }
 
         // Warn about already connected ports.
         if ( ap->connected() && bp->connected() ) {
-            log(Debug) << "Port '"<< ap->getName() << "' of Component '"<<a->getName()
-                       << "' and port '"<< bp->getName() << "' of Component '"<<b->getName()
-                       << "' are already connected but (probably) not to each other. Connecting them anyway."<<endlog();
+            Logger::log().logf(Logger::Debug, "DeploymentComponent::connectPorts",
+                               "Port '%s' of Component '%s' and port '%s' of Component '%s' are already connected but (probably) not to each other. Connecting them anyway.",
+                               ap->getName().c_str(), a->getName().c_str(),
+                               bp->getName().c_str(), b->getName().c_str());
         }
 
         // use the base::PortInterface implementation
         if ( ap->connectTo( bp ) ) {
             // all went fine.
-            log(Info)<< "Connected Port " << one +"." + one_port << " to  "<< other +"." + other_port <<"." << endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent::connectPorts",
+                               "Connected Port %s.%s to  %s.%s.",
+                               one.c_str(), one_port.c_str(), other.c_str(), other_port.c_str());
             return true;
         } else {
-            log(Error)<< "Failed to connect Port " << one +"." + one_port << " to  "<< other +"." + other_port <<"." << endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectPorts",
+                               "Failed to connect Port %s.%s to  %s.%s.",
+                               one.c_str(), one_port.c_str(), other.c_str(), other_port.c_str());
             return true;
         }
     }
@@ -585,7 +597,9 @@ namespace OCL
             return false;
         PortInterface* porti = serv->getPort(port);
         if ( !porti ) {
-            log(Error) <<"Service in component "<<comp<<" has no port "<< port << "."<< endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::createStream",
+                               "Service in component %s has no port %s.",
+                               comp.c_str(), port.c_str());
             return false;
         }
         return porti->createStream( policy );
@@ -594,7 +608,6 @@ namespace OCL
     // New API:
     bool DeploymentComponent::connect(const std::string& one, const std::string& other, ConnPolicy cp)
     {
-        RTT::Logger::In in("connect");
 		base::PortInterface* ap, *bp;
 		ap = stringToPort(one);
 		bp = stringToPort(other);
@@ -603,18 +616,21 @@ namespace OCL
 
         // Warn about already connected ports.
         if ( ap->connected() && bp->connected() ) {
-            log(Debug) << "Port '"<< ap->getName() << "' of '"<< one
-                       << "' and port '"<< bp->getName() << "' of '"<< other
-                       << "' are already connected but (probably) not to each other. Connecting them anyway."<<endlog();
+            Logger::log().logf(Logger::Debug, "DeploymentComponent::connect",
+                               "Port '%s' of '%s' and port '%s' of '%s' are already connected but (probably) not to each other. Connecting them anyway.",
+                               ap->getName().c_str(), one.c_str(),
+                               bp->getName().c_str(), other.c_str());
         }
 
         // use the base::PortInterface implementation
         if ( ap->connectTo( bp, cp ) ) {
             // all went fine.
-            log(Info)<< "Connected Port " << one << " to  "<< other <<"." << endlog();
+            Logger::log().logf(Logger::Info, "DeploymentComponent::connect",
+                               "Connected Port %s to  %s.", one.c_str(), other.c_str());
             return true;
         } else {
-            log(Error)<< "Failed to connect Port " << one << " to  "<< other <<"." << endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connect",
+                               "Failed to connect Port %s to  %s.", one.c_str(), other.c_str());
             return false;
         }
     }
@@ -630,16 +646,17 @@ namespace OCL
 
     bool DeploymentComponent::connectServices(const std::string& one, const std::string& other)
     {
-    RTT::Logger::In in("connectServices");
         RTT::TaskContext* a, *b;
         a = getPeer(one);
         b = getPeer(other);
         if ( !a ) {
-            log(Error) << one <<" could not be found."<< endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectServices",
+                               "%s could not be found.", one.c_str());
             return false;
         }
         if ( !b ) {
-            log(Error) << other <<" could not be found."<< endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectServices",
+                               "%s could not be found.", other.c_str());
             return false;
         }
 
@@ -648,38 +665,49 @@ namespace OCL
 
     bool DeploymentComponent::connectOperations(const std::string& required, const std::string& provided)
     {
-        RTT::Logger::In in("connectOperations");
         // Required service
         boost::iterator_range<std::string::const_iterator> reqs = boost::algorithm::find_last(required, ".");
         std::string reqs_name(required.begin(), reqs.begin());
         std::string rop_name(reqs.begin()+1, required.end());
-        log(Debug) << "Looking for required operation " << rop_name << " in service " << reqs_name << endlog();
+        Logger::log().logf(Logger::Debug, "DeploymentComponent::connectOperations",
+                           "Looking for required operation %s in service %s",
+                           rop_name.c_str(), reqs_name.c_str());
         ServiceRequester::shared_ptr r = this->stringToServiceRequester(reqs_name);
         // Provided service
         boost::iterator_range<std::string::const_iterator> pros = boost::algorithm::find_last(provided, ".");
         std::string pros_name(provided.begin(), pros.begin());
         std::string pop_name(pros.begin()+1, provided.end());
-        log(Debug) << "Looking for provided operation " << pop_name << " in service " << pros_name << endlog();
+        Logger::log().logf(Logger::Debug, "DeploymentComponent::connectOperations",
+                           "Looking for provided operation %s in service %s",
+                           pop_name.c_str(), pros_name.c_str());
         Service::shared_ptr p = this->stringToService(pros_name);
         // Requested operation
         RTT::base::OperationCallerBaseInvoker* rop = r->getOperationCaller(rop_name);
         if (! rop) {
-            log(Error) << "No requested operation " << rop_name << " found in service " << reqs_name << endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectOperations",
+                               "No requested operation %s found in service %s",
+                               rop_name.c_str(), reqs_name.c_str());
             return false;
         }
         if ( rop->ready() ) {
-            log(Error) << "Requested operation " << rop_name << " already connected to a provided operation!" << endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectOperations",
+                               "Requested operation %s already connected to a provided operation!",
+                               rop_name.c_str());
             return false;
         }
         // Provided operation
         if (! p->hasOperation(pop_name)) {
-            log(Error) << "No provided operation " << pop_name << " found in service " << pros_name << endlog();
+            Logger::log().logf(Logger::Error, "DeploymentComponent::connectOperations",
+                               "No provided operation %s found in service %s",
+                               pop_name.c_str(), pros_name.c_str());
             return false;
         }
         // Connection
         rop->setImplementation(p->getLocalOperation( pop_name ), r->getServiceOwner()->engine());
         if ( rop->ready() )
-            log(Debug) << "Successfully set up OperationCaller for operation " << rop_name << endlog();
+            Logger::log().logf(Logger::Debug, "DeploymentComponent::connectOperations",
+                               "Successfully set up OperationCaller for operation %s",
+                               rop_name.c_str());
         return rop->ready();
     }
 
@@ -688,7 +716,8 @@ namespace OCL
             return ORO_SCHED_OTHER;
         if (sched == "ORO_SCHED_RT" )
             return ORO_SCHED_RT;
-        log(Error)<<"Unknown scheduler type: "<< sched <<endlog();
+        Logger::log().logf(Logger::Error, "DeploymentComponent::string_to_oro_sched",
+                           "Unknown scheduler type: %s", sched.c_str());
         return -1;
     }
 
@@ -708,7 +737,8 @@ namespace OCL
             if (!this->provides()->hasService("Lua")) {
                 // Load lua scripting service
                 if(!RTT::plugin::PluginLoader::Instance()->loadService("Lua", this)) {
-                  RTT::log(RTT::Error) << "Could not load lua service." << RTT::endlog();
+                  Logger::log().logf(Logger::Error, "DeploymentComponent::runScript",
+                                     "Could not load lua service.");
                   return false;
                 }
 
