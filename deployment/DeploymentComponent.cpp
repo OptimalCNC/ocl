@@ -1901,8 +1901,8 @@ namespace OCL
 
     bool DeploymentComponent::stopComponentsGroup(const int group)
     {
-        RTT::Logger::In in("stopComponentsGroup");
-        log(Info) << "Stopping group " << group << endlog();
+        Logger::log().logf(Logger::Info, "DeploymentComponent::stopComponentsGroup",
+                           "Stopping group %d", group);
         bool valid = true;
         // 1. Stop all activities, give components chance to cleanup.
         for ( CompList::reverse_iterator cit = comps.rbegin(); cit != comps.rend(); ++cit) {
@@ -1911,9 +1911,12 @@ namespace OCL
                 OperationCaller<bool(void)> instancestop = it->instance->getOperation("stop");
                 if ( !it->instance->isRunning() ||
                      instancestop() ) {
-                    log(Info) << "Stopped "<< it->instance->getName() <<endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::stopComponentsGroup",
+                                       "Stopped %s", it->instance->getName().c_str());
                 } else {
-                    log(Error) << "Could not stop loaded Component "<< it->instance->getName() <<endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::stopComponentsGroup",
+                                       "Could not stop loaded Component %s",
+                                       it->instance->getName().c_str());
                     valid = false;
                 }
             }
@@ -1933,9 +1936,9 @@ namespace OCL
 
     bool DeploymentComponent::cleanupComponentsGroup(const int group)
     {
-        RTT::Logger::In in("cleanupComponentsGroup");
         bool valid = true;
-        log(Info) << "Cleaning up group " << group << endlog();
+        Logger::log().logf(Logger::Info, "DeploymentComponent::cleanupComponentsGroup",
+                           "Cleaning up group %d", group);
         // 1. Cleanup all activities, give components chance to cleanup.
         for ( CompList::reverse_iterator cit = comps.rbegin(); cit != comps.rend(); ++cit) {
             ComponentData* it = &(compmap[*cit]);
@@ -1953,22 +1956,31 @@ namespace OCL
                             PropertyLoader pl(it->instance);
                             bool ret = pl.save( file, true ); // save all !
                             if (!ret) {
-                                log(Error) << "Failed to save properties for component "<< it->instance->getName() <<endlog();
+                                Logger::log().logf(Logger::Error, "DeploymentComponent::cleanupComponentsGroup",
+                                                   "Failed to save properties for component %s",
+                                                   it->instance->getName().c_str());
                                 valid = false;
                             } else {
-                                log(Info) << "Refusing to save property file that was not loaded for "<< it->instance->getName() <<endlog();
+                                Logger::log().logf(Logger::Info, "DeploymentComponent::cleanupComponentsGroup",
+                                                   "Refusing to save property file that was not loaded for %s",
+                                                   it->instance->getName().c_str());
                             }
                         } else if (it->autosave) {
-                            log(Error) << "AutoSave set but no property file specified. Specify one using the UpdateProperties simple element."<<endlog();
+                            Logger::log().logf(Logger::Error, "DeploymentComponent::cleanupComponentsGroup",
+                                               "AutoSave set but no property file specified. Specify one using the UpdateProperties simple element.");
                         }
                     } else if (it->autosave) {
-                        log(Error) << "AutoSave set but no property file specified. Specify one using the UpdateProperties simple element."<<endlog();
+                        Logger::log().logf(Logger::Error, "DeploymentComponent::cleanupComponentsGroup",
+                                           "AutoSave set but no property file specified. Specify one using the UpdateProperties simple element.");
                     }
                     OperationCaller<bool(void)> instancecleanup = it->instance->getOperation("cleanup");
                     instancecleanup();
-                    log(Info) << "Cleaned up "<< it->instance->getName() <<endlog();
+                    Logger::log().logf(Logger::Info, "DeploymentComponent::cleanupComponentsGroup",
+                                       "Cleaned up %s", it->instance->getName().c_str());
                 } else {
-                    log(Error) << "Could not cleanup Component "<< it->instance->getName() << " (not Stopped)"<<endlog();
+                    Logger::log().logf(Logger::Error, "DeploymentComponent::cleanupComponentsGroup",
+                                       "Could not cleanup Component %s (not Stopped)",
+                                       it->instance->getName().c_str());
                     valid = false;
                 }
             }
@@ -1988,7 +2000,8 @@ namespace OCL
 
     bool DeploymentComponent::unloadComponentsGroup(const int group)
     {
-        log(Info) << "Unloading group " << group << endlog();
+        Logger::log().logf(Logger::Info, "DeploymentComponent::unloadComponentsGroup",
+                           "Unloading group %d", group);
         // 2. Disconnect and destroy all components in group
         bool valid = true;
         CompList::reverse_iterator cit = comps.rbegin();
@@ -2014,7 +2027,8 @@ namespace OCL
 
     void DeploymentComponent::clearConfiguration()
     {
-        log(Info) << "Clearing configuration options."<< endlog();
+        Logger::log().logf(Logger::Info, "DeploymentComponent::clearConfiguration",
+                           "Clearing configuration options.");
         conmap.clear();
         deletePropertyBag( root );
     }
