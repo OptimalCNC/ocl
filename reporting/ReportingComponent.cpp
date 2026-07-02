@@ -102,12 +102,16 @@ namespace OCL
             // we first force getMember to get to the type, then we do it again but with a reference set.
             DataSourceBase::shared_ptr part = dsb->getMember( *it );
             if (!part) {
-                log(Error) <<"memberDecomposition: Inconsistent type info for "<< dsb->getTypeName() << ": reported to have part '"<<*it<<"' but failed to return it."<<endlog();
+                Logger::log().logf(Logger::Error, "ReportingComponent::memberDecomposition",
+                                   "memberDecomposition: Inconsistent type info for %s: reported to have part '%s' but failed to return it.",
+                                   dsb->getTypeName().c_str(), it->c_str());
                 continue;
             }
             if ( !part->isAssignable() ) {
                 // For example: the case for size() and capacity() in SequenceTypeInfo
-                log(Debug)<<"memberDecomposition: Part "<< *it << ":"<< part->getTypeName() << " is not changeable."<<endlog();
+                Logger::log().logf(Logger::Debug, "ReportingComponent::memberDecomposition",
+                                   "memberDecomposition: Part %s:%s is not changeable.",
+                                   it->c_str(), part->getTypeName().c_str());
                 continue;
             }
             // now the reference magic:
@@ -116,7 +120,9 @@ namespace OCL
             // newpb will contain a reference to the port's datasource data !
             PropertyBase* newpb = part->getTypeInfo()->buildProperty(*it,"Part", ref);
             if ( !newpb ) {
-                log(Error)<< "Decomposition failed because Part '"<<*it<<"' is not known to type system."<<endlog();
+                Logger::log().logf(Logger::Error, "ReportingComponent::memberDecomposition",
+                                   "Decomposition failed because Part '%s' is not known to type system.",
+                                   it->c_str());
                 continue;
             }
             // finally recurse or add it to the target bag:
@@ -152,7 +158,9 @@ namespace OCL
                 if (item) {
                     if ( !item->isAssignable() ) {
                         // For example: the case for size() and capacity() in SequenceTypeInfo
-                        log(Warning)<<"memberDecomposition: Item '"<< indx << "' of type "<< dsb->getTypeName() << " is not changeable."<<endlog();
+                        Logger::log().logf(Logger::Warning, "ReportingComponent::memberDecomposition",
+                                           "memberDecomposition: Item '%s' of type %s is not changeable.",
+                                           indx.c_str(), dsb->getTypeName().c_str());
                         continue;
                     }
                     // finally recurse or add it to the target bag:
@@ -170,7 +178,9 @@ namespace OCL
             }
         }
         if (targetbag.empty() )
-            log(Debug) << "memberDecomposition: "<<  dsb->getTypeName() << " returns an empty property bag." << endlog();
+            Logger::log().logf(Logger::Debug, "ReportingComponent::memberDecomposition",
+                               "memberDecomposition: %s returns an empty property bag.",
+                               dsb->getTypeName().c_str());
         return true;
     }
 
@@ -244,14 +254,14 @@ namespace OCL
 
     bool ReportingComponent::configureHook()
     {
-        Logger::In in("ReportingComponent");
-
         // we make a copy to be allowed to iterate over and exted report_data:
         PropertyBag bag = report_data.value();
 
         if ( bag.empty() ) {
-            log(Error) <<"No port or component configuration loaded."<<endlog();
-            log(Error) <<"Please use marshalling.loadProperties(), reportComponent() (scripting) or LoadProperties (XML) in order to fill in ReportData." <<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::configureHook",
+                               "No port or component configuration loaded.");
+            Logger::log().logf(Logger::Error, "ReportingComponent::configureHook",
+                               "Please use marshalling.loadProperties(), reportComponent() (scripting) or LoadProperties (XML) in order to fill in ReportData.");
             return false;
         }
 
@@ -261,8 +271,9 @@ namespace OCL
             {
                 Property<std::string>* compName = dynamic_cast<Property<std::string>* >( *it );
                 if ( !compName )
-                    log(Error) << "Expected Property \""
-                                  << (*it)->getName() <<"\" to be of type string."<< endlog();
+                    Logger::log().logf(Logger::Error, "ReportingComponent::configureHook",
+                                       "Expected Property \"%s\" to be of type string.",
+                                       (*it)->getName().c_str());
                 else if ( compName->getName() == "Component" ) {
                     std::string name = compName->value(); // we will delete this property !
                     this->unreportComponent( name );
@@ -272,7 +283,9 @@ namespace OCL
                     string cname = compName->value().substr(0, compName->value().find("."));
                     string pname = compName->value().substr( compName->value().find(".")+1, string::npos);
                     if (cname.empty() || pname.empty() ) {
-                        log(Error) << "The Port value '"<<compName->getName()<< "' must at least consist of a component name followed by a dot and the port name." <<endlog();
+                        Logger::log().logf(Logger::Error, "ReportingComponent::configureHook",
+                                           "The Port value '%s' must at least consist of a component name followed by a dot and the port name.",
+                                           compName->getName().c_str());
                         ok = false;
                         continue;
                     }
@@ -283,7 +296,9 @@ namespace OCL
                     string cname = compName->value().substr(0, compName->value().find("."));
                     string pname = compName->value().substr( compName->value().find(".")+1, string::npos);
                     if (cname.empty() || pname.empty() ) {
-                        log(Error) << "The Data value '"<<compName->getName()<< "' must at least consist of a component name followed by a dot and the property/attribute name." <<endlog();
+                        Logger::log().logf(Logger::Error, "ReportingComponent::configureHook",
+                                           "The Data value '%s' must at least consist of a component name followed by a dot and the property/attribute name.",
+                                           compName->getName().c_str());
                         ok = false;
                         continue;
                     }
@@ -291,8 +306,9 @@ namespace OCL
                     ok &= this->reportData(cname, pname);
                 }
                 else {
-                    log(Error) << "Expected \"Component\", \"Port\" or \"Data\", got "
-                                  << compName->getName() << endlog();
+                    Logger::log().logf(Logger::Error, "ReportingComponent::configureHook",
+                                       "Expected \"Component\", \"Port\" or \"Data\", got %s",
+                                       compName->getName().c_str());
                     ok = false;
                 }
                 ++it;
@@ -302,17 +318,17 @@ namespace OCL
 
     bool ReportingComponent::screenComponent( const std::string& comp )
     {
-        Logger::In in("ReportingComponent::screenComponent");
-        log(Error) << "not implemented." <<comp<<endlog();
+        Logger::log().logf(Logger::Error, "ReportingComponent::screenComponent",
+                           "not implemented.%s", comp.c_str());
         return false;
     }
 
     bool ReportingComponent::screenImpl( const std::string& comp, std::ostream& output)
     {
-        Logger::In in("ReportingComponent");
         TaskContext* c = this->getPeer(comp);
         if ( c == 0) {
-            log(Error) << "Unknown Component: " <<comp<<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::screenImpl",
+                               "Unknown Component: %s", comp.c_str());
             return false;
         }
         output << "Screening Component '"<< comp << "' : "<< endl << endl;
@@ -344,19 +360,21 @@ namespace OCL
     }
 
     bool ReportingComponent::reportComponent( const std::string& component ) {
-        Logger::In in("ReportingComponent");
         // Users may add own data sources, so avoid duplicates
         //std::vector<std::string> sources                = comp->data()->getNames();
         TaskContext* comp = this->getPeer(component);
         if ( !comp ) {
-            log(Error) << "Could not report Component " << component <<" : no such peer."<<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportComponent",
+                               "Could not report Component %s : no such peer.",
+                               component.c_str());
             return false;
         }
         if ( !report_data.value().findValue<string>(component) )
             report_data.value().ownProperty( new Property<string>("Component","",component) );
         Ports ports   = comp->ports()->getPorts();
         for (Ports::iterator it = ports.begin(); it != ports.end() ; ++it) {
-            log(Debug) << "Checking port " << (*it)->getName()<<"."<<endlog();
+            Logger::log().logf(Logger::Debug, "ReportingComponent::reportComponent",
+                               "Checking port %s.", (*it)->getName().c_str());
             this->reportPort( component, (*it)->getName() );
         }
         return true;
@@ -366,7 +384,9 @@ namespace OCL
     bool ReportingComponent::unreportComponent( const std::string& component ) {
         TaskContext* comp = this->getPeer(component);
         if ( !comp ) {
-            log(Error) << "Could not unreport Component " << component <<" : no such peer."<<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::unreportComponent",
+                               "Could not unreport Component %s : no such peer.",
+                               component.c_str());
             return false;
         }
         Ports ports   = comp->ports()->getPorts();
@@ -382,14 +402,17 @@ namespace OCL
 
     // report a specific connection.
     bool ReportingComponent::reportPort(const std::string& component, const std::string& port ) {
-        Logger::In in("ReportingComponent");
         TaskContext* comp = this->getPeer(component);
         if ( this->ports()->getPort(component +"_"+port) ) {
-            log(Warning) <<"Already reporting "<<component<<"."<<port<<": removing old port first."<<endlog();
+            Logger::log().logf(Logger::Warning, "ReportingComponent::reportPort",
+                               "Already reporting %s.%s: removing old port first.",
+                               component.c_str(), port.c_str());
             this->unreportPort(component,port);
         }
         if ( !comp ) {
-            log(Error) << "Could not report Component " << component <<" : no such peer."<<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportPort",
+                               "Could not report Component %s : no such peer.",
+                               component.c_str());
             return false;
         }
         std::vector<std::string> strs;
@@ -405,20 +428,25 @@ namespace OCL
                 strs.erase( strs.begin() );
         }
         if (!service) {
-            log(Error) <<"No such service: '"<< strs.front() <<"' while looking for port '"<< port<<"'"<<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportPort",
+                               "No such service: '%s' while looking for port '%s'",
+                               strs.front().c_str(), port.c_str());
             return 0;
         }
         base::PortInterface* porti = 0;
         porti = service->getPort(strs.front());
         if ( !porti ) {
-            log(Error) << "Could not report Port " << port
-                       <<" : no such port on Component "<<component<<"."<<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportPort",
+                               "Could not report Port %s : no such port on Component %s.",
+                               port.c_str(), component.c_str());
             return false;
         }
 
         base::InputPortInterface* ipi =  dynamic_cast<base::InputPortInterface*>(porti);
         if (ipi) {
-            log(Error) << "Can not report InputPort "<< porti->getName() <<" of Component " << component <<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportPort",
+                               "Can not report InputPort %s of Component %s",
+                               porti->getName().c_str(), component.c_str());
             return false;
         }
             // create new port temporarily
@@ -431,15 +459,20 @@ namespace OCL
         assert(ipi);
 
         if (report_policy.type == ConnPolicy::DATA ) {
-            log(Info) << "Not buffering of data flow connections. You may miss samples." <<endlog();
+            Logger::log().logf(Logger::Info, "ReportingComponent::reportPort",
+                               "Not buffering of data flow connections. You may miss samples.");
         } else {
-            log(Info) << "Buffering ports with size "<< report_policy.size << ", as set in ReportPolicy property." <<endlog();
+            Logger::log().logf(Logger::Info, "ReportingComponent::reportPort",
+                               "Buffering ports with size %d, as set in ReportPolicy property.",
+                               report_policy.size);
         }
 
         this->ports()->addEventPort( *ipi );
         if (porti->connectTo(ourport, report_policy ) == false)
         {
-            log(Error) << "Could not connect to OutputPort " << porti->getName() << endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportPort",
+                               "Could not connect to OutputPort %s",
+                               porti->getName().c_str());
             this->ports()->removePort(ourport->getName());
             delete ourport; // XXX/TODO We're leaking ourport !
             return false;
@@ -448,13 +481,15 @@ namespace OCL
         if (this->reportDataSource(component + "." + port, "Port",
                                    ipi->getDataSource(),ipi, true) == false)
         {
-            log(Error) << "Failed reporting port " << port << endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportPort",
+                               "Failed reporting port %s", port.c_str());
             this->ports()->removePort(ourport->getName());
             delete ourport;
             return false;
         }
 
-        log(Info) << "Monitoring OutputPort " << port << " : ok." << endlog();
+        Logger::log().logf(Logger::Info, "ReportingComponent::reportPort",
+                           "Monitoring OutputPort %s : ok.", port.c_str());
         // Add port to ReportData properties if component nor port are listed yet.
         if ( !report_data.value().findValue<string>(component) && !report_data.value().findValue<string>( component+"."+port) )
             report_data.value().ownProperty(new Property<string>("Port","",component+"."+port));
@@ -474,17 +509,19 @@ namespace OCL
     // report a specific datasource, property,...
     bool ReportingComponent::reportData(const std::string& component,const std::string& dataname)
     {
-        Logger::In in("ReportingComponent");
         TaskContext* comp = this->getPeer(component);
         if ( !comp ) {
-            log(Error) << "Could not report Component " << component <<" : no such peer."<<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportData",
+                               "Could not report Component %s : no such peer.",
+                               component.c_str());
             return false;
         }
         // Is it an attribute ?
         if ( comp->provides()->getValue( dataname ) ) {
             if (this->reportDataSource( component + "." + dataname, "Data",
                                         comp->provides()->getValue( dataname )->getDataSource(), 0,  false ) == false) {
-                log(Error) << "Failed reporting data " << dataname <<endlog();
+                Logger::log().logf(Logger::Error, "ReportingComponent::reportData",
+                                   "Failed reporting data %s", dataname.c_str());
                 return false;
             }
         }
@@ -493,7 +530,8 @@ namespace OCL
         if ( comp->properties() && comp->properties()->find( dataname ) ) {
             if (this->reportDataSource( component + "." + dataname, "Data",
                                         comp->properties()->find( dataname )->getDataSource(), 0, false ) == false) {
-                log(Error) << "Failed reporting data " << dataname <<endlog();
+                Logger::log().logf(Logger::Error, "ReportingComponent::reportData",
+                                   "Failed reporting data %s", dataname.c_str());
                 return false;
             }
         }
@@ -521,7 +559,8 @@ namespace OCL
         // update the copy from the original.
         base::DataSourceBase::shared_ptr clone = orig->getTypeInfo()->buildValue();
         if ( !clone ) {
-            log(Error) << "Could not report '"<< tag <<"' : unknown type." << endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::reportDataSource",
+                               "Could not report '%s' : unknown type.", tag.c_str());
             return false;
         }
         PropertyBase* prop = 0;
@@ -541,9 +580,9 @@ namespace OCL
     }
 
     bool ReportingComponent::startHook() {
-        Logger::In in("ReportingComponent");
         if (marshallers.begin() == marshallers.end()) {
-            log(Error) << "Need at least one marshaller to write reports." <<endlog();
+            Logger::log().logf(Logger::Error, "ReportingComponent::startHook",
+                               "Need at least one marshaller to write reports.");
             return false;
         }
 
