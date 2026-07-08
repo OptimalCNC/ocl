@@ -758,7 +758,7 @@ namespace OCL
 
     TaskBrowser::TaskBrowser( RTT::TaskContext* _c )
         : RTT::TaskContext("TaskBrowser"),
-          debug(0),
+          debug{0},
           line_read(0),
           lastc(0), storedname(""), storedline(-1),
           usehex(false),
