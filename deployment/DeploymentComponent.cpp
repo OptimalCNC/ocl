@@ -200,6 +200,7 @@ namespace OCL
         this->addOperation("setActivity", &DeploymentComponent::setActivity, this, ClientThread).doc("Attach an activity to a Component.").arg("CompName", "The name of the Component.").arg("Period", "The period of the activity (set to 0.0 for non periodic).").arg("Priority", "The priority of the activity.").arg("SchedType", "The scheduler type of the activity.");
         this->addOperation("setActivityOnCPU", &DeploymentComponent::setActivityOnCPU, this, ClientThread).doc("Attach an activity to a Component.").arg("CompName", "The name of the Component.").arg("Period", "The period of the activity (set to 0.0 for non periodic).").arg("Priority", "The priority of the activity.").arg("SchedType", "The scheduler type of the activity.").arg("CPU","The CPU to run on, starting from zero.");
         this->addOperation("setPeriodicActivity", &DeploymentComponent::setPeriodicActivity, this, ClientThread).doc("Attach a periodic activity to a Component.").arg("CompName", "The name of the Component.").arg("Period", "The period of the activity.").arg("Priority", "The priority of the activity.").arg("SchedType", "The scheduler type of the activity.");
+        this->addOperation("setPeriodicActivityOnCPU", &DeploymentComponent::setPeriodicActivityOnCPU, this, ClientThread).doc("Attach a periodic activity to a Component on a CPU.").arg("CompName", "The name of the Component.").arg("Period", "The period of the activity.").arg("Priority", "The priority of the activity.").arg("SchedType", "The scheduler type of the activity.").arg("CPU","The CPU to run on, starting from zero.");
         this->addOperation("setSequentialActivity", &DeploymentComponent::setSequentialActivity, this, ClientThread).doc("Attach a 'stand alone' sequential activity to a Component.").arg("CompName", "The name of the Component.");
         this->addOperation("setSlaveActivity", &DeploymentComponent::setSlaveActivity, this, ClientThread).doc("Attach a 'stand alone' slave activity to a Component.").arg("CompName", "The name of the Component.").arg("Period", "The period of the activity (set to zero for non periodic).");
         this->addOperation("setMasterSlaveActivity", &DeploymentComponent::setMasterSlaveActivity, this, ClientThread).doc("Attach a slave activity with a master to a Component. The slave becomes a peer of the master as well.").arg("Master", "The name of the Component which is master of the Slave.").arg("Slave", "The name of the Component which gets the SlaveActivity.");
@@ -2274,6 +2275,22 @@ namespace OCL
                                                   int scheduler)
     {
         if ( this->setNamedActivity(comp_name, "PeriodicActivity", period, priority, scheduler) ) {
+            assert( compmap[comp_name].instance );
+            assert( compmap[comp_name].act );
+            compmap[comp_name].instance->setActivity( compmap[comp_name].act );
+            compmap[comp_name].act = 0;
+            return true;
+        }
+        return false;
+    }
+
+    bool DeploymentComponent::setPeriodicActivityOnCPU(const std::string& comp_name,
+                                                       double period, int priority,
+                                                       int scheduler,
+                                                       unsigned int cpu_nr)
+    {
+        unsigned int mask = 0x1 << cpu_nr;
+        if ( this->setNamedActivity(comp_name, "PeriodicActivity", period, priority, scheduler, mask) ) {
             assert( compmap[comp_name].instance );
             assert( compmap[comp_name].act );
             compmap[comp_name].instance->setActivity( compmap[comp_name].act );

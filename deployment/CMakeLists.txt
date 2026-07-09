@@ -35,6 +35,13 @@ IF ( BUILD_DEPLOYMENT )
     
     orocos_generate_package()
 
+    IF(BUILD_TESTING)
+      # Compile-only API guard: Xenomai auto-init can abort before main on non-RT hosts.
+      add_executable(ocl_deployment_api_check tests/deployment_api_test.cpp)
+      orocos_configure_executable(ocl_deployment_api_check)
+      target_link_libraries(ocl_deployment_api_check orocos-ocl-deployment)
+    ENDIF(BUILD_TESTING)
+
     ADD_SUBDIRECTORY( tests )
 
     # This requires the orocos-rtt library to be carefully tagged
