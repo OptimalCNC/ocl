@@ -3,10 +3,7 @@ CMAKE_DEPENDENT_OPTION( BUILD_DEPLOYMENT_TEST "Build Deployment Test" ON "BUILD_
 
 IF ( BUILD_DEPLOYMENT_TEST )
 
-    # This gathers all the .cpp files into the variable 'SRCS'
-    FILE( GLOB SRCS [^.]*.cpp )
-
-    GLOBAL_ADD_TEST( deploy ${SRCS} )
+    GLOBAL_ADD_TEST( deploy main.cpp )
     PROGRAM_ADD_DEPS( deploy orocos-ocl-taskbrowser orocos-ocl-deployment )
 
     # Copy this file to build dir.
