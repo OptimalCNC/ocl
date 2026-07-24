@@ -2069,7 +2069,7 @@ static int ServiceRequester_requires(lua_State *L)
 
 	for(i=2; i<=argc; i++) {
 		subsr_str = luaL_checkstring(L, i);
-		subsr = sr->requires(subsr_str);
+		subsr = sr->requests(subsr_str);
 		if (subsr == 0)
 			luaL_error(L, "ServiceRequester: no required subservice %s of service %s",
 				   subsr_str, sr->getRequestName().c_str());
@@ -2566,7 +2566,7 @@ static int TaskContext_requires(lua_State *L)
 {
 	ServiceRequester::shared_ptr sr;
 	TaskContext *tc = *(luaM_checkudata_bx(L, 1, TaskContext));
-	sr = tc->requires();
+	sr = tc->requests();
 
 	if(!sr)
 		luaL_error(L, "TaskContext.requires returned NULL");

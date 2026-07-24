@@ -84,7 +84,7 @@ public:
     : RTT::TaskContext("HelloRequester"),
       helloworld("helloworld")
     {
-        this->requires()->addOperationCaller(helloworld);
+        this->requests()->addOperationCaller(helloworld);
     }
     void virtual updateHook() {
         helloworld();

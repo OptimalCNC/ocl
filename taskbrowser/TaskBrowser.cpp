@@ -1585,9 +1585,9 @@ namespace OCL
                 sresult.str("");
                 result = true;
             }
-        if ( context->requires()->requiresService( name ) ) // only object name was typed
+        if ( context->requests()->requiresService( name ) ) // only object name was typed
             {
-                sr = context->requires(name);
+                sr = context->requests(name);
                 sresult << nl << "Requiring '"<< coloron << sr->getRequestName() <<coloroff <<"' with methods: ";
                 vector<string> methods = sr->getOperationCallerNames();
                 sresult << coloron;
@@ -2291,20 +2291,20 @@ namespace OCL
         // RTT::TaskContext specific:
         if ( peer->provides() == taskobject ) {
 
-            objlist = peer->requires()->getOperationCallerNames();
+            objlist = peer->requests()->getOperationCallerNames();
             sresult <<nl<< " Requires Operations :";
             if ( !objlist.empty() ) {
                 for(vector<string>::iterator it = objlist.begin(); it != objlist.end(); ++it)
-                    sresult <<coloron<< "  " << *it <<coloroff << '[' << (peer->requires()->getOperationCaller(*it)->ready() ? "R]" : "!]");
+                    sresult <<coloron<< "  " << *it <<coloroff << '[' << (peer->requests()->getOperationCaller(*it)->ready() ? "R]" : "!]");
                 sresult << nl;
             } else {
                 sresult <<coloron<< "  (none)" <<coloroff <<nl;
             }
-            objlist = peer->requires()->getRequesterNames();
+            objlist = peer->requests()->getRequesterNames();
             sresult <<     " Requests Services   :";
             if ( !objlist.empty() ) {
                 for(vector<string>::iterator it = objlist.begin(); it != objlist.end(); ++it)
-                    sresult <<coloron<< "  " << *it <<coloroff << '[' << (peer->requires(*it)->ready() ? "R]" : "!]");
+                    sresult <<coloron<< "  " << *it <<coloroff << '[' << (peer->requests(*it)->ready() ? "R]" : "!]");
                 sresult << nl;
             } else {
                 sresult <<coloron<< "  (none)" <<coloroff <<nl;

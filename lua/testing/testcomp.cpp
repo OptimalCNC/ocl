@@ -146,7 +146,7 @@ namespace OCL
 				->addOperation( "print", &Testcomp::op_1,
 						this, OwnThread).doc("'op_1' Description").arg("mes", "just any string.");
 
-			this->requires("print_str")->addOperationCaller(print);
+			this->requests("print_str")->addOperationCaller(print);
 
 #if 0
 			Logger::log().logf(Logger::Info, "Testcomp",

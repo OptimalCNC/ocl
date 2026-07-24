@@ -464,14 +464,14 @@ namespace OCL
             return ServiceRequester::shared_ptr();
         }
         // component is peer or self:
-        ServiceRequester::shared_ptr ret = tc->requires();
+        ServiceRequester::shared_ptr ret = tc->requests();
 
         // remove component name:
         strs.erase( strs.begin() );
 
         // iterate over remainders:
         while ( !strs.empty() && ret) {
-            ret = ret->requires( strs.front() );
+            ret = ret->requests( strs.front() );
             if (ret)
                 strs.erase( strs.begin() );
         }
