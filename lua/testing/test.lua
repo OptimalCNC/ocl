@@ -62,8 +62,8 @@ function test_call_op_0_ct() return testcomp:op_0_ct() end
 function test_call_op_0_ot() return testcomp:op_0_ot() end
 
 function test_call_op_2()
-   local dbl = var.new("double", 1.1)
-   local s = var.new("string", "hello op2")
+   local dbl = var.new("Float64", 1.1)
+   local s = var.new("String", "hello op2")
    local res = testcomp:op_2(s, dbl)
 
    if not res == 2.2 then
@@ -76,7 +76,7 @@ end
 
 -- test
 function test_call_op_1_out()
-   local i = var.new("int", 1)
+   local i = var.new("Int32", 1)
    local res = testcomp:op_1_out(i)
 
    if i:tolua() ~= 2 then
@@ -88,19 +88,19 @@ function test_call_op_1_out()
 end
 
 function test_call_op_3_out()
-   local s = var.new("string", "hello op3")
-   local d = var.new("double", 1.1)
-   local i = var.new("int", 33)
+   local s = var.new("String", "hello op3")
+   local d = var.new("Float64", 1.1)
+   local i = var.new("Int32", 33)
    local res=testcomp:op_3_out(s, d, i)
 
-   if s ~= var.new("string", "hello op3-this-string-has-a-tail") or d ~= var.new("double", 2.2) or i ~= var.new("int", 4711) then
+   if s ~= var.new("String", "hello op3-this-string-has-a-tail") or d ~= var.new("Float64", 2.2) or i ~= var.new("Int32", 4711) then
       print("Checkpoint 1: wrong state of outvalues", s, d, i)
       return false
    end
 
    print("return value: ", res)
 
-   if s ~= var.new("string", "hello op3-this-string-has-a-tail") or d ~= var.new("double", 2.2) or i ~= var.new("int", 4711) then
+   if s ~= var.new("String", "hello op3-this-string-has-a-tail") or d ~= var.new("Float64", 2.2) or i ~= var.new("Int32", 4711) then
       print("Checkpoint 2: wrong state of outvalues", s, d, i)
       return false
    end
@@ -108,10 +108,10 @@ function test_call_op_3_out()
 end
 
 function test_call_op_1_out_retval()
-   local i = var.new("int", 33)
+   local i = var.new("Int32", 33)
    local res = testcomp:op_1_out_retval(i)
 
-   if i ~= var.new("int", 34) then
+   if i ~= var.new("Int32", 34) then
       print("Checkpoint 1: wrong i, expected 34, got ", i)
       return false
    end
@@ -120,7 +120,7 @@ function test_call_op_1_out_retval()
    print("retval", res)
    print("retval", i)
 
-   if i ~= var.new("int", 34) then
+   if i ~= var.new("Int32", 34) then
       print("Checkpoint 2: wrong i, expected 34, got ", i)
       return false
    end
@@ -128,8 +128,8 @@ function test_call_op_1_out_retval()
 end
 
 function test_var_assignment()
-   local i1= var.new("int", 2)
-   local i2= var.new("int", 99)
+   local i1= var.new("Int32", 2)
+   local i2= var.new("Int32", 99)
 
    if i1 == i2 then
       print("comparison error")
@@ -161,7 +161,7 @@ function test_send_op2()
 end
 
 function test_send_op2_with_collect_args()
-   local res=rtt.Variable("double")
+   local res=rtt.Variable("Float64")
    local sh = testcomp:getOperation("op_2"):send("hullo", 55.5)
    ss = sh:collect(res)
    if ss ~= "SendSuccess" or res:tolua() ~= 111 then
@@ -172,8 +172,8 @@ end
 
 
 function test_dataflow_lua()
-   po = rtt.OutputPort.new("string", "po", "my output port")
-   pi = rtt.InputPort.new("string", "pi", "my input port")
+   po = rtt.OutputPort.new("String", "po", "my output port")
+   pi = rtt.InputPort.new("String", "pi", "my input port")
    TC:addPort(po)
    TC:addPort(pi)
    print("connecting ports... ", d:connectTwoPorts("lua", "po", "lua", "pi"))
@@ -190,7 +190,7 @@ function test_lua_service()
    execstr_op([[
 		    require("rttlib")
 		    local tc=rtt.getTC()
-		    local p=rtt.Property.new("string", "service-testprop")
+		    local p=rtt.Property.new("String", "service-testprop")
 		    tc:addProperty(p)
 		    p:set("hullo from the lua service!")
 	      ]])
@@ -229,7 +229,7 @@ function test_lua_eehook()
 		    require("rttlib")
 		    local tc=rtt.getTC()
 		    counter = 0
-		    local p=rtt.Property.new("int", "result")
+		    local p=rtt.Property.new("Int32", "result")
 		    tc:addProperty(p)
 		    eeh = rtt.EEHook.new("foobar")
 
@@ -257,7 +257,7 @@ end
 
 function call_uint8_arg()
    d:import("rtt_rosnode")
-   x=rtt.Variable("uint8", 3)
+   x=rtt.Variable("UInt8", 3)
    return not testcomp:op1_uint8(x) and testcomp:op1_uint8(120)
 end
 

@@ -1,8 +1,6 @@
 #include "NetcdfReporting.hpp"
 #include <rtt/RTT.hpp>
 #include <rtt/Logger.hpp>
-#include <rtt/types/Types.hpp>
-#include <rtt/types/TemplateTypeInfo.hpp>
 #include "NetcdfMarshaller.hpp"
 #include "NetcdfHeaderMarshaller.hpp"
 
@@ -21,11 +19,6 @@ namespace OCL
           repfile("ReportFile","Location on disc to store the reports.", "reports.nc")
     {
         this->properties()->addProperty( repfile );
-
-        if(types::TypeInfoRepository::Instance()->getTypeInfo<short>() == 0 )
-        {
-        	types::TypeInfoRepository::Instance()->addType(new types::TemplateTypeInfo<short, true>("short"));
-        }
     }
 
     bool NetcdfReporting::startHook()

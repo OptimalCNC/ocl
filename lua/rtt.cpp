@@ -34,7 +34,9 @@
 
 #include "rtt.hpp"
 
+#include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 using namespace std;
 using namespace RTT;
@@ -233,19 +235,16 @@ static bool __Variable_isbasic(lua_State *L, DataSourceBase::shared_ptr &dsb)
 {
 	const types::TypeInfo *ti = dsb->getTypeInfo();
 
-	if ( Variable_is_a(L, ti, "bool") ||
-	     Variable_is_a(L, ti, "double") ||
-	     Variable_is_a(L, ti, "float") ||
-	     Variable_is_a(L, ti, "uint") ||
-	     Variable_is_a(L, ti, "int") ||
-	     Variable_is_a(L, ti, "long") ||
-	     Variable_is_a(L, ti, "char") ||
-	     Variable_is_a(L, ti, "uint8") || Variable_is_a(L, ti, "int8") ||
-	     Variable_is_a(L, ti, "uint16") || Variable_is_a(L, ti, "int16") ||
-	     Variable_is_a(L, ti, "uint32") || Variable_is_a(L, ti, "int32") ||
-	     Variable_is_a(L, ti, "uint64") || Variable_is_a(L, ti, "int64") ||
-	     Variable_is_a(L, ti, "string") ||
-	     Variable_is_a(L, ti, "void"))
+	if ( Variable_is_a(L, ti, "Bool") ||
+	     Variable_is_a(L, ti, "Float32") ||
+	     Variable_is_a(L, ti, "Float64") ||
+	     Variable_is_a(L, ti, "Int8") || Variable_is_a(L, ti, "UInt8") ||
+	     Variable_is_a(L, ti, "Int16") || Variable_is_a(L, ti, "UInt16") ||
+	     Variable_is_a(L, ti, "Int32") || Variable_is_a(L, ti, "UInt32") ||
+	     Variable_is_a(L, ti, "Int64") || Variable_is_a(L, ti, "UInt64") ||
+	     Variable_is_a(L, ti, "Char") ||
+	     Variable_is_a(L, ti, "String") ||
+	     Variable_is_a(L, ti, "Void"))
 		return true;
 	else
 		return false;
@@ -269,72 +268,60 @@ static int __Variable_tolua(lua_State *L, DataSourceBase::shared_ptr dsb)
 	const types::TypeInfo* ti = dsb->getTypeInfo();
 	assert(ds);
 
-	if(Variable_is_a(L, ti, "bool")) { // bool
+	if(Variable_is_a(L, ti, "Bool")) {
 		DataSource<bool>* dsb = DataSource<bool>::narrow(ds);
 		if(dsb) lua_pushboolean(L, dsb->get());
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "float")) { // float
+	} else if (Variable_is_a(L, ti, "Float32")) {
 		DataSource<float>* dsb = DataSource<float>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "double")) { // double
+	} else if (Variable_is_a(L, ti, "Float64")) {
 		DataSource<double>* dsb = DataSource<double>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "uint8")) { // uint8_t
-		DataSource<uint8_t>* dsb = DataSource<uint8_t>::narrow(ds);
+	} else if (Variable_is_a(L, ti, "UInt8")) {
+		DataSource<std::uint8_t>* dsb = DataSource<std::uint8_t>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "int8")) { // int8_t
-		DataSource<int8_t>* dsb = DataSource<int8_t>::narrow(ds);
+	} else if (Variable_is_a(L, ti, "Int8")) {
+		DataSource<std::int8_t>* dsb = DataSource<std::int8_t>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "uint16")) { // uint16_t
-		DataSource<uint16_t>* dsb = DataSource<uint16_t>::narrow(ds);
+	} else if (Variable_is_a(L, ti, "UInt16")) {
+		DataSource<std::uint16_t>* dsb = DataSource<std::uint16_t>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "int16")) { // int16_t
-		DataSource<int16_t>* dsb = DataSource<int16_t>::narrow(ds);
+	} else if (Variable_is_a(L, ti, "Int16")) {
+		DataSource<std::int16_t>* dsb = DataSource<std::int16_t>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "uint32")) { // uint32_t
-		DataSource<uint32_t>* dsb = DataSource<uint32_t>::narrow(ds);
+	} else if (Variable_is_a(L, ti, "UInt32")) {
+		DataSource<std::uint32_t>* dsb = DataSource<std::uint32_t>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "int32")) { // int32_t
-		DataSource<int32_t>* dsb = DataSource<int32_t>::narrow(ds);
+	} else if (Variable_is_a(L, ti, "Int32")) {
+		DataSource<std::int32_t>* dsb = DataSource<std::int32_t>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "uint64")) { // uint64_t
-		DataSource<uint64_t>* dsb = DataSource<uint64_t>::narrow(ds);
+	} else if (Variable_is_a(L, ti, "UInt64")) {
+		DataSource<std::uint64_t>* dsb = DataSource<std::uint64_t>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "int64")) { // int64_t
-		DataSource<int64_t>* dsb = DataSource<int64_t>::narrow(ds);
+	} else if (Variable_is_a(L, ti, "Int64")) {
+		DataSource<std::int64_t>* dsb = DataSource<std::int64_t>::narrow(ds);
 		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "uint")) { // uint
-		DataSource<unsigned int>* dsb = DataSource<unsigned int>::narrow(ds);
-		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
-		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "long")) { //long
-		DataSource<long>* dsb = DataSource<long>::narrow(ds);
-		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
-		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "int")) { // int
-		DataSource<int>* dsb = DataSource<int>::narrow(ds);
-		if(dsb) lua_pushnumber(L, ((lua_Number) dsb->get()));
-		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "char")) { // char
+	} else if (Variable_is_a(L, ti, "Char")) {
 		DataSource<char>* dsb = DataSource<char>::narrow(ds);
+		if (!dsb) goto out_nodsb;
 		char c = dsb->get();
-		if(dsb) lua_pushlstring(L, &c, 1);
-		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "string")) { //string
+		lua_pushlstring(L, &c, 1);
+	} else if (Variable_is_a(L, ti, "String")) {
 		DataSource<std::string>* dsb = DataSource<std::string>::narrow(ds);
 		if(dsb) lua_pushlstring(L, dsb->get().c_str(), dsb->get().size());
 		else goto out_nodsb;
-	} else if (Variable_is_a(L, ti, "void")) {
+	} else if (Variable_is_a(L, ti, "Void")) {
 		DataSource<void>* dsb = DataSource<void>::narrow(ds);
 		if(dsb) lua_pushnil(L);
 		else goto out_nodsb;
@@ -523,7 +510,7 @@ static int Variable_create(lua_State *L)
 	const char *type;
 	type = luaL_checkstring(L, 1);
 
-	if(!strcmp(type, "void"))
+	if(!strcmp(type, "Void"))
 		luaL_error(L, "Variable.new: can't create void variable");
 
 	TypeInfo* ti = Types()->type(type);
@@ -552,7 +539,7 @@ static void Variable_fromlua(lua_State *L, DataSourceBase::shared_ptr& dsb, int 
 	luaL_checkany(L, valind);
 	int luatype = lua_type(L, valind); 	/* type of lua variable */
 
-	if(__typenames_cmp(L, ti, "bool")) {
+	if(__typenames_cmp(L, ti, "Bool")) {
 		lua_Number x;
 		if(luatype == LUA_TBOOLEAN)
 			x = (lua_Number) lua_toboolean(L, valind);
@@ -566,30 +553,28 @@ static void Variable_fromlua(lua_State *L, DataSourceBase::shared_ptr& dsb, int 
 			luaL_error(L, "Variable_fromlua: failed to narrow target dsb to bool");
 		ads->set((bool) x);
 	}
-	else if (__typenames_cmp(L, ti, "uint"))   { CONVERT_TO_NUMBER(unsigned int); }
-	else if (__typenames_cmp(L, ti, "int"))    { CONVERT_TO_NUMBER(int); }
-	else if (__typenames_cmp(L, ti, "double")) { CONVERT_TO_NUMBER(double); }
-	else if (__typenames_cmp(L, ti, "long"))   { CONVERT_TO_NUMBER(double); }
-	else if (__typenames_cmp(L, ti, "uint8"))  { CONVERT_TO_NUMBER(uint8_t); }
-	else if (__typenames_cmp(L, ti, "int8"))   { CONVERT_TO_NUMBER(int8_t); }
-	else if (__typenames_cmp(L, ti, "uint16")) { CONVERT_TO_NUMBER(uint16_t); }
-	else if (__typenames_cmp(L, ti, "int16"))  { CONVERT_TO_NUMBER(int16_t); }
-	else if (__typenames_cmp(L, ti, "uint32")) { CONVERT_TO_NUMBER(uint32_t); }
-	else if (__typenames_cmp(L, ti, "int32"))  { CONVERT_TO_NUMBER(int32_t); }
-	else if (__typenames_cmp(L, ti, "uint64")) { CONVERT_TO_NUMBER(uint64_t); }
-	else if (__typenames_cmp(L, ti, "int64"))  { CONVERT_TO_NUMBER(int64_t); }
-	else if (__typenames_cmp(L, ti, "float"))  { CONVERT_TO_NUMBER(float); }
+	else if (__typenames_cmp(L, ti, "Float32")) { CONVERT_TO_NUMBER(float); }
+	else if (__typenames_cmp(L, ti, "Float64")) { CONVERT_TO_NUMBER(double); }
+	else if (__typenames_cmp(L, ti, "UInt8"))   { CONVERT_TO_NUMBER(std::uint8_t); }
+	else if (__typenames_cmp(L, ti, "Int8"))    { CONVERT_TO_NUMBER(std::int8_t); }
+	else if (__typenames_cmp(L, ti, "UInt16"))  { CONVERT_TO_NUMBER(std::uint16_t); }
+	else if (__typenames_cmp(L, ti, "Int16"))   { CONVERT_TO_NUMBER(std::int16_t); }
+	else if (__typenames_cmp(L, ti, "UInt32"))  { CONVERT_TO_NUMBER(std::uint32_t); }
+	else if (__typenames_cmp(L, ti, "Int32"))   { CONVERT_TO_NUMBER(std::int32_t); }
+	else if (__typenames_cmp(L, ti, "UInt64"))  { CONVERT_TO_NUMBER(std::uint64_t); }
+	else if (__typenames_cmp(L, ti, "Int64"))   { CONVERT_TO_NUMBER(std::int64_t); }
 
-	else if (__typenames_cmp(L, ti, "char")) {
+	else if (__typenames_cmp(L, ti, "Char")) {
 		const char *x;
 		size_t l;
 		if (luatype == LUA_TSTRING) x = lua_tolstring(L, valind, &l);
 		else goto out_conv_err;
+		if (l == 0) luaL_error(L, "Variable_fromlua: can't convert an empty string to Char");
 		AssignableDataSource<char> *ads = ValueDataSource<char>::narrow(dsb.get());
 		if (ads == NULL) luaL_error(L, "Variable_fromlua: failed to narrow target dsb to char");
 		ads->set((char) x[0]);
 
-	} else if (__typenames_cmp(L, ti, "string")) {
+	} else if (__typenames_cmp(L, ti, "String")) {
 		const char *x;
 		if (luatype == LUA_TSTRING) x = lua_tostring(L, valind);
 		else goto out_conv_err;
@@ -1835,7 +1820,7 @@ static int Service_getOperation(lua_State *L)
 	}
 
 	/* return value */
-	if(oip->resultType() != "void"){
+	if(oip->resultType() != "Void"){
 		ti = oip->getArgumentType(0); // 0 == return type
 		if(!ti)
 			luaL_error(L, "Operation.call: '%s', failed to locate TypeInfo for return value of type '%s'",

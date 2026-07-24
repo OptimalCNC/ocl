@@ -470,14 +470,14 @@ end
 -- Sample iface data structure for create_if function below.
 -- iface={
 --    ports={
---       { name='conf_events', datatype='string', type='in+event', desc="Configuration events in-port" },
---       { name='foo', datatype='int', type='in', desc="numeric in-port" },
---       { name='conf_status', datatype='string', type='out', desc="Current configuration status" },
+--       { name='conf_events', datatype='String', type='in+event', desc="Configuration events in-port" },
+--       { name='foo', datatype='Int32', type='in', desc="numeric in-port" },
+--       { name='conf_status', datatype='String', type='out', desc="Current configuration status" },
 --    },
 --    properties={
---       { name='configurations', datatype='string', desc="Set of configuration" },
+--       { name='configurations', datatype='String', desc="Set of configuration" },
 --    attributes={
---       { name='attributes', datatype='string'},
+--       { name='attributes', datatype='String'},
 --    }
 -- }
 

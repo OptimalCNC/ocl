@@ -12,7 +12,7 @@ var = rtt.Variable
 d = TC:getPeer("Deployer")
 
 -- setup pretty printing
-mt = getmetatable(rtt.Variable.new("int"))
+mt = getmetatable(rtt.Variable.new("Int32"))
 mt.__tostring=rttlib.var2str
 
 mt = getmetatable(d)
@@ -30,7 +30,7 @@ function test_gc()
    t={}
    local function alloc(num)
       for i=1,num do
-	 t[#t+1]=rtt.Variable.new("string", string.rep("+", 1000))
+	 t[#t+1]=rtt.Variable.new("String", string.rep("+", 1000))
       end
    end
 
@@ -42,40 +42,40 @@ end
 
 function create_vars()
    print(" --- bool ---")
-   x = var.new("bool", true)
+   x = var.new("Bool", true)
    print("toString", x:toString())
    print(x:getType(), x:tolua())
 
    print(" --- int ---")
-   x = var.new("int", -4711)
+   x = var.new("Int32", -4711)
    print("toString", x:toString())
    print(x:getType(), x:tolua())
 
    print(" --- uint ---")
-   x = var.new("uint", 4712)
+   x = var.new("UInt32", 4712)
    print("toString", x:toString())
    print(x:getType(), x:tolua())
 
    print(" --- double ---")
-   x = var.new("double", 4711.1415)
+   x = var.new("Float64", 4711.1415)
    print("toString", x:toString())
    print(x:getType(), x:tolua())
 
    print(" --- char ---")
-   x = var.new("char", "Moon")
+   x = var.new("Char", "Moon")
    print("toString", x:toString())
    print(x:getType(), x:tolua())
 
    print(" --- string ---")
-   x = var.new("string", "my hello world string")
+   x = var.new("String", "my hello world string")
    print("toString", x:toString())
    print(x:getType(), x:tolua())
 end
 
 --
 function test_ports()
-   ip = rtt.InputPort.new("string", "my-port")
-   op = rtt.OutputPort.new("string", "my-out-port")
+   ip = rtt.InputPort.new("String", "my-port")
+   op = rtt.OutputPort.new("String", "my-out-port")
 
    print("depl ports before:",  table.concat(d:getPortNames(), ', '))
    d:addPort(ip)
@@ -92,7 +92,7 @@ function test_var_introspection()
    types = rtt.Variable.getTypes()
    print("known types: ", utils.tab2str(types))
    for _,v in ipairs(types) do
-      if v ~= "void" then
+      if v ~= "Void" then
 	 x = rtt.Variable.new(v)
 	 print("\ttesting " .. v .. ":", rttlib.var2str(x))
       end
@@ -100,8 +100,8 @@ function test_var_introspection()
 end
 
 function test_var_update()
-   s1=var.new("string", "hello-cruel-evil-world")
-   s2=var.new("string", "hello-wonderful-nice-world")
+   s1=var.new("String", "hello-cruel-evil-world")
+   s2=var.new("String", "hello-wonderful-nice-world")
    print("s1: " .. s1:tolua(), "s2: " .. s2:tolua());
    print("update: ", s1:update(s2));
    print("s1: " .. tostring(s1), "s2: " .. tostring(s2));
@@ -111,8 +111,8 @@ end
 -- test_var_update()
 
 function test_operators()
-   v1 = var.new("int", 33)
-   v2 = var.new("int", 66)
+   v1 = var.new("Int32", 33)
+   v2 = var.new("Int32", 66)
    v3 = var.opBinary("+", v1,v2)
    print(v3)
 end
@@ -145,8 +145,8 @@ end
 -- test_compound_data()
 
 function test_ports()
-   op = rtt.OutputPort.new("string", "outport1")
-   ip = rtt.InputPort.new("string", "inport1")
+   op = rtt.OutputPort.new("String", "outport1")
+   ip = rtt.InputPort.new("String", "inport1")
 
    TC:addPort(op)
    TC:addPort(ip)
@@ -154,17 +154,17 @@ function test_ports()
    depl = TC:getPeer("Deployer")
    print("connecting ports: ",
 	 depl:call("connectTwoPorts",
-		   var.new("string", "lua"),
-		   var.new("string", "outport1"),
-		   var.new("string", "lua"),
-		   var.new("string", "inport1")))
+		   var.new("String", "lua"),
+		   var.new("String", "outport1"),
+		   var.new("String", "lua"),
+		   var.new("String", "inport1")))
 
-   local res = var.new("string")
+   local res = var.new("String")
 
    for i=1,10 do
       local mes = "data_" .. tostring(i)
       print("writing... " .. mes)
-      op:write(var.new("string", mes))
+      op:write(var.new("String", mes))
       ip:read(res)
       print("reading... " .. tostring(res))
    end
@@ -173,8 +173,8 @@ end
 -- test_ports()
 
 function test_props()
-   p = rtt.Property.new("string", "myprop", "my special property")
-   p:set(var.new("string", "hatschi!"))
+   p = rtt.Property.new("String", "myprop", "my special property")
+   p:set(var.new("String", "hatschi!"))
    print(p)
    TC:addProperty(p)
 end

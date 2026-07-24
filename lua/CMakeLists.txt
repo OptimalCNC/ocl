@@ -43,6 +43,15 @@ if(BUILD_LUA_RTT)
     target_link_libraries(rttlua lua-repl orocos-ocl-lua orocos-ocl-deployment ${LUA_LIBRARIES} ${OROCOS-RTT_LIBRARIES} ${EXTRA_DEPS} ${EXTRA_LIBRARIES} )
     install(TARGETS rttlua RUNTIME DESTINATION bin)
 
+    if(BUILD_TESTING)
+      add_test(
+        NAME ocl_lua_canonical_scalar_types
+        COMMAND rttlua ${CMAKE_CURRENT_SOURCE_DIR}/testing/canonical-types.lua)
+      set_tests_properties(ocl_lua_canonical_scalar_types PROPERTIES
+        ENVIRONMENT "OROCOS_TARGET=${OROCOS_TARGET};RTT_COMPONENT_PATH=${CMAKE_INSTALL_PREFIX}/lib/orocos"
+        PASS_REGULAR_EXPRESSION "canonical scalar type test passed")
+    endif()
+
     configure_file(../bin/rttlua.in ../bin/rttlua @ONLY)
     install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/../bin/rttlua DESTINATION bin) # The shell script
 

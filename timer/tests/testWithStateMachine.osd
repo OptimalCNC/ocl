@@ -1,11 +1,11 @@
 StateMachine testWithStateMachine_SM
 {
-	var int timerID=-1;
+	var Int32 timerID=-1;
 
 	// allocation of timers IDs
-	var int ID_WAIT=3;
-	var int ID_TIMEOUT=4;
-	var int ID_EXTRA=5;
+	var Int32 ID_WAIT=3;
+	var Int32 ID_TIMEOUT=4;
+	var Int32 ID_EXTRA=5;
 
 	  //**************************************************************************
 	  initial state START
