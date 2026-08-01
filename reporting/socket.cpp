@@ -55,9 +55,9 @@ namespace {
             OCL::TCP::Socket* mainClass;
 
         public:
-            sockbuf( OCL::TCP::Socket* m ) : mainClass(m)
+            sockbuf( OCL::TCP::Socket* m, [[maybe_unused]] int socketID )
+                : ptr(new char[bufsize]), mainClass(m)
             {
-                char* ptr = new char[bufsize];
                 setp(ptr, ptr + bufsize);   // output buffer
                 setg(0, 0, 0);              // input stream: not enabled
 #if __APPLE__
@@ -72,7 +72,7 @@ http://gobby.0x539.de/trac/browser/net6/trunk/src/socket.cpp?rev=224
                 */
                 int value = 1;
                 if (-1 == setsockopt(
-                        mainClass->socket, SOL_SOCKET, SO_NOSIGPIPE, &value, sizeof(value)))
+                        socketID, SOL_SOCKET, SO_NOSIGPIPE, &value, sizeof(value)))
                 {
                     Logger::log().logf(Logger::Error, "Socket",
                                        "Error setting socket option. Continuing.");
@@ -113,8 +113,9 @@ http://gobby.0x539.de/trac/browser/net6/trunk/src/socket.cpp?rev=224
 
             void put_char(int chr)
             {
-                Logger::log().logf(Logger::Error, "Socket::put_char",
-                                   "Socket::put_char is unimplemented");
+                const char value = static_cast<char>(chr);
+                if (::send(mainClass->socket, &value, sizeof(value), SEND_OPTIONS) == -1)
+                    mainClass->rawClose();
             }
 
             void put_buffer()
@@ -142,7 +143,7 @@ http://gobby.0x539.de/trac/browser/net6/trunk/src/socket.cpp?rev=224
 namespace OCL {
 namespace TCP {
     Socket::Socket( int socketID ) :
-            std::ostream( new sockbuf(this) ),
+            std::ostream( new sockbuf(this, socketID) ),
             socket(socketID), begin(0), ptrpos(0), end(0)
     {
     }
@@ -150,6 +151,9 @@ namespace TCP {
 
     Socket::~Socket()
     {
+        std::streambuf* owned_buffer = rdbuf();
+        rdbuf(nullptr);
+        delete owned_buffer;
         if( isValid() )
         {
             rawClose();
@@ -226,7 +230,8 @@ namespace TCP {
     std::string Socket::readLine()
     {
         if(dataAvailable()){
-            if(0>recv(socket,buffer,sizeof(char[ptrpos+1]),MSG_WAITALL))
+            const std::size_t bytes_to_read = static_cast<std::size_t>(ptrpos) + 1;
+            if(0>recv(socket,buffer,bytes_to_read,MSG_WAITALL))
                 return "";
 
             return std::string(buffer,ptrpos);
