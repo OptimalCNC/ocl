@@ -79,7 +79,7 @@ int main(int argc, char** argv)
         ("opcua-address",
          po::value<std::string>(&opcuaDeploymentOptions.server.bind_address)
              ->default_value(opcuaDeploymentOptions.server.bind_address),
-         "Address to bind (defaults to loopback)")
+         "Loopback address to bind (127.0.0.1 or ::1)")
         ("opcua-port",
          po::value<std::uint16_t>(&opcuaDeploymentOptions.server.port)
              ->default_value(opcuaDeploymentOptions.server.port),
