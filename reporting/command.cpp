@@ -495,7 +495,7 @@ namespace TCP
         return true;
     }
 
-    RealCommand* RealCommand::getRealCommand(const std::vector<Command*>& cmds) const
+    RealCommand* RealCommand::getRealCommand(const std::vector<Command*>&) const
     {
         return const_cast<RealCommand*>(this);
     }

@@ -58,10 +58,10 @@ namespace RTT
 
         virtual void flush() {}
 
-        virtual void serialize(base::PropertyBase* v)
+        virtual void serialize(base::PropertyBase*)
         {
         }
-        virtual void serialize(const PropertyBag &v)
+        virtual void serialize(const PropertyBag&)
         {
         }
 	};

@@ -55,7 +55,7 @@ public:
     }
 };
 
-int ORO_main( int argc, char** argv)
+int ORO_main( int, char** argv)
 {
     // Set log level more verbose than default,
     // such that we can see output :

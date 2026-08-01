@@ -190,7 +190,8 @@ namespace OCL
 #if defined(USE_SIGNALS)
     // Signal code only on Posix:
     int TaskBrowser::rl_received_signal;
-    void TaskBrowser::rl_sigwinch_handler(int sig, siginfo_t *si, void *ctxt) {
+    void TaskBrowser::rl_sigwinch_handler(int sig, [[maybe_unused]] siginfo_t *si,
+                                          [[maybe_unused]] void *ctxt) {
         rl_received_signal = sig;
 #if defined(OROCOS_TARGET_XENOMAI) && CONFIG_XENO_VERSION_MAJOR == 2 && CONFIG_XENO_VERSION_MINOR >= 5
         if (xeno_sigwinch_handler(sig, si, ctxt) == 0)
@@ -201,7 +202,8 @@ namespace OCL
             rl_resize_terminal();
     }
 
-    void TaskBrowser::rl_signal_handler(int sig, siginfo_t *si, void *ctxt) {
+    void TaskBrowser::rl_signal_handler(int sig, [[maybe_unused]] siginfo_t *si,
+                                        [[maybe_unused]] void *ctxt) {
         rl_received_signal = sig;
         switch(sig) {
         case SIGINT:
@@ -745,7 +747,7 @@ namespace OCL
         return;
     }
 
-    char ** TaskBrowser::orocos_hmi_completion ( const char *text, int start, int end )
+    char ** TaskBrowser::orocos_hmi_completion ( const char *text, int, int )
     {
         char **matches;
         matches = ( char ** ) 0;

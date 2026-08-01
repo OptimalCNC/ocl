@@ -178,7 +178,7 @@ namespace TCP
     }
 
 
-    void Datasender::checkbag(const PropertyBag &v)
+    void Datasender::checkbag(const PropertyBag&)
     {
         Logger::log().logf(Logger::Debug, "Datasender::checkbag",
                            "Let's check the subscriptions");

@@ -278,9 +278,9 @@ namespace OCL
         return true;
     }
 
-    bool DeploymentComponent::componentLoaded(RTT::TaskContext* c) { return true; }
+    bool DeploymentComponent::componentLoaded(RTT::TaskContext*) { return true; }
 
-    void DeploymentComponent::componentUnloaded(TaskContext* c) { }
+    void DeploymentComponent::componentUnloaded(TaskContext*) { }
 
     DeploymentComponent::~DeploymentComponent()
     {
@@ -309,9 +309,11 @@ namespace OCL
 
     bool DeploymentComponent::waitForSignals(int *sigs, std::size_t sig_count) {
 #ifdef USE_SIGNALS
-        struct sigaction sa, sold[sig_count];
+        struct sigaction sa = {};
+        std::vector<struct sigaction> sold(sig_count);
         std::size_t index = 0;
         sa.sa_handler = ctrl_c_catcher;
+        sigemptyset(&sa.sa_mask);
         for( ; index < sig_count; ++index) {
             if ( ::sigaction(sigs[index], &sa, &sold[index]) != 0) {
                 cout << "DeploymentComponent: Failed to install signal handler for signal " << sigs[index] << endl;

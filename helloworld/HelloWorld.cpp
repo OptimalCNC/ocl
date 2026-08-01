@@ -158,7 +158,7 @@ namespace OCL
 // should only be compiled as a library.
 #ifndef OCL_COMPONENT_ONLY
 
-int ORO_main(int argc, char** argv)
+int ORO_main(int, char** argv)
 {
     // Set log level more verbose than default,
     // such that we can see output :
