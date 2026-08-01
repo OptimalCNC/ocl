@@ -155,6 +155,21 @@ else()
   configure_file(Doxyfile.in Doxyfile @ONLY) # Again, now with OROCOS-RTT_PATH set.
 endif()
 
+option(BUILD_OPCUA "Build optional OPC UA deployment support" ON)
+set(OCL_OPCUA_FOUND FALSE)
+if(BUILD_OPCUA)
+  find_package(PkgConfig QUIET)
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(RTT_OPCUA QUIET "rtt_opcua-${OROCOS_TARGET}")
+  endif()
+  if(RTT_OPCUA_FOUND)
+    set(OCL_OPCUA_FOUND TRUE)
+    message(STATUS "Found rtt_opcua ${RTT_OPCUA_VERSION} for ${OROCOS_TARGET}")
+  else()
+    message(STATUS "rtt_opcua not found; OPC UA deployment support is disabled")
+  endif()
+endif()
+
 ## Find Netcdf
 INCLUDE (${PROJ_SOURCE_DIR}/config/FindNetcdf.cmake)
 

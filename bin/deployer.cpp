@@ -41,7 +41,13 @@
 #ifdef USE_TASKBROWSER
 #include <taskbrowser/TaskBrowser.hpp>
 #endif
+#ifdef OCL_OPCUA_DEPLOYER
+#include <deployment/OpcUaDeploymentComponent.hpp>
+#else
 #include <deployment/DeploymentComponent.hpp>
+#endif
+#include <cstdint>
+#include <exception>
 #include <iostream>
 #include <string>
 #include "deployer-funcs.hpp"
@@ -66,6 +72,25 @@ int main(int argc, char** argv)
     po::variables_map           vm;
 	po::options_description     otherOptions;
 
+#ifdef OCL_OPCUA_DEPLOYER
+    OCL::OpcUaDeploymentOptions opcuaDeploymentOptions;
+    po::options_description opcuaOptions("OPC UA options");
+    opcuaOptions.add_options()
+        ("opcua-address",
+         po::value<std::string>(&opcuaDeploymentOptions.server.bind_address)
+             ->default_value(opcuaDeploymentOptions.server.bind_address),
+         "Address to bind (defaults to loopback)")
+        ("opcua-port",
+         po::value<std::uint16_t>(&opcuaDeploymentOptions.server.port)
+             ->default_value(opcuaDeploymentOptions.server.port),
+         "OPC UA TCP port")
+        ("opcua-endpoint-path",
+         po::value<std::string>(&opcuaDeploymentOptions.server.endpoint_path)
+             ->default_value(opcuaDeploymentOptions.server.endpoint_path),
+         "OPC UA endpoint path");
+    otherOptions.add(opcuaOptions);
+#endif
+
 #ifdef  ORO_BUILD_RTALLOC
     OCL::memorySize             rtallocMemorySize   = ORO_DEFAULT_RTALLOC_SIZE;
 	po::options_description     rtallocOptions      = OCL::deployerRtallocOptions(rtallocMemorySize);
@@ -89,10 +114,10 @@ int main(int argc, char** argv)
 
     // if extra options not found then process all command line options,
     // otherwise process all options up to but not including "--"
-    int rc = OCL::deployerParseCmdLine(!found ? argc : optIndex, argv,
-                                       siteFile, scriptFiles, name, requireNameService, deploymentOnlyChecked,
-									   minNumberCPU,
-                                       vm, &otherOptions);
+    int rc = OCL::deployerParseCmdLine(
+        !found ? argc : optIndex, argv, siteFile, scriptFiles, name,
+        requireNameService, deploymentOnlyChecked, minNumberCPU, vm,
+        &otherOptions, false);
 	if (0 != rc)
 	{
 		return rc;
@@ -116,12 +141,20 @@ int main(int argc, char** argv)
      *   NO log(...) statements before __os_init() !!!!! 
      ***************************************************/
 
-	if (0 == __os_init(argc - optIndex, &argv[optIndex]))
+    if (0 == __os_init(argc - optIndex, &argv[optIndex]))
     {
         rc = -1;     // prove otherwise
-        // scope to force dc destruction prior to memory free
-        {
+        try {
+#ifdef OCL_OPCUA_DEPLOYER
+            opcuaDeploymentOptions.server.application_name = name + " OPC UA";
+            OCL::OpcUaDeploymentComponent dc(
+                name, siteFile, opcuaDeploymentOptions);
+            Logger::log().logf(Logger::Info, "DeployerOpcUa",
+                               "Listening on %s",
+                               dc.opcUaEndpoint().c_str());
+#else
             OCL::DeploymentComponent dc( name, siteFile );
+#endif
 
             /* Only start the scripts after the Orb was created. Processing of
                scripts stops after the first failed script, and -1 is returned.
@@ -187,6 +220,22 @@ int main(int argc, char** argv)
                 dc.shutdownDeployment();
             }
 #endif
+        } catch (const std::exception& error) {
+            Logger::log().logf(Logger::Error,
+#ifdef OCL_OPCUA_DEPLOYER
+                               "DeployerOpcUa",
+#else
+                               "Deployer",
+#endif
+                               "Uncaught exception: %s", error.what());
+        } catch (...) {
+            Logger::log().logf(Logger::Error,
+#ifdef OCL_OPCUA_DEPLOYER
+                               "DeployerOpcUa",
+#else
+                               "Deployer",
+#endif
+                               "Uncaught non-standard exception.");
         }
 
         // shutdown Orocos

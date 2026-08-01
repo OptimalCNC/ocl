@@ -36,6 +36,37 @@ IF ( BUILD_DEPLOYMENT)
 
 ENDIF ( BUILD_DEPLOYMENT)
 
+IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
+
+    orocos_executable(deployer-opcua deployer.cpp deployer-funcs.cpp)
+    target_compile_definitions(deployer-opcua PRIVATE OCL_OPCUA_DEPLOYER)
+    target_include_directories(deployer-opcua PRIVATE ${RTT_OPCUA_INCLUDE_DIRS})
+    target_compile_options(deployer-opcua PRIVATE ${RTT_OPCUA_CFLAGS_OTHER})
+    target_link_libraries(deployer-opcua ${EXTRA_DEPS})
+    target_link_libraries(deployer-opcua
+      ${OROCOS-RTT_LIBRARIES} orocos-ocl-taskbrowser
+      orocos-ocl-deployment-opcua ${Boost_PROGRAM_OPTIONS_LIBRARY}
+      ${RTT_OPCUA_LDFLAGS} ${EXTRA_LIBRARIES})
+
+    orocos_executable(ctaskbrowser-opcua ctaskbrowser-opcua.cpp)
+    target_include_directories(ctaskbrowser-opcua PRIVATE
+      ${RTT_OPCUA_INCLUDE_DIRS})
+    target_compile_options(ctaskbrowser-opcua PRIVATE
+      ${RTT_OPCUA_CFLAGS_OTHER})
+    target_link_libraries(ctaskbrowser-opcua ${EXTRA_DEPS})
+    target_link_libraries(ctaskbrowser-opcua
+      ${OROCOS-RTT_LIBRARIES} orocos-ocl-taskbrowser
+      ${RTT_OPCUA_LDFLAGS} ${EXTRA_LIBRARIES})
+
+    configure_file(deployer.in deployer-opcua @ONLY)
+    configure_file(ctaskbrowser.in ctaskbrowser-opcua @ONLY)
+    install(PROGRAMS
+      ${CMAKE_CURRENT_BINARY_DIR}/deployer-opcua
+      ${CMAKE_CURRENT_BINARY_DIR}/ctaskbrowser-opcua
+      DESTINATION bin)
+
+ENDIF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
+
 # Remote TaskBrowser application
 IF ( BUILD_TASKBROWSER AND OROCOS-RTT_CORBA_FOUND)
 

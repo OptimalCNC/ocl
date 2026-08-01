@@ -32,14 +32,46 @@ IF ( BUILD_DEPLOYMENT )
         TARGET_LINK_LIBRARIES( orocos-ocl-deployment-corba orocos-ocl-deployment)
         TARGET_LINK_LIBRARIES( orocos-ocl-deployment-corba ${OROCOS-RTT_CORBA_LIBRARIES})
     ENDIF(OROCOS-RTT_CORBA_FOUND)
+
+    IF (OCL_OPCUA_FOUND)
+        orocos_library(orocos-ocl-deployment-opcua OpcUaDeploymentComponent.cpp)
+        SET_TARGET_PROPERTIES(orocos-ocl-deployment-opcua PROPERTIES
+          SOVERSION ${OCL_SOVERSION}
+          DEFINE_SYMBOL OCL_DLL_EXPORT)
+        orocos_install_headers(OpcUaDeploymentComponent.hpp INSTALL include/orocos/ocl)
+        TARGET_INCLUDE_DIRECTORIES(orocos-ocl-deployment-opcua PRIVATE
+          ${RTT_OPCUA_INCLUDE_DIRS})
+        TARGET_COMPILE_OPTIONS(orocos-ocl-deployment-opcua PRIVATE
+          ${RTT_OPCUA_CFLAGS_OTHER})
+        TARGET_LINK_LIBRARIES(orocos-ocl-deployment-opcua
+          orocos-ocl-deployment ${RTT_OPCUA_LDFLAGS})
+    ENDIF(OCL_OPCUA_FOUND)
     
-    orocos_generate_package()
+    IF(OCL_OPCUA_FOUND)
+      orocos_generate_package(DEPENDS rtt_opcua-${OROCOS_TARGET})
+    ELSE(OCL_OPCUA_FOUND)
+      orocos_generate_package()
+    ENDIF(OCL_OPCUA_FOUND)
 
     IF(BUILD_TESTING)
       # Compile-only API guard: Xenomai auto-init can abort before main on non-RT hosts.
       add_executable(ocl_deployment_api_check tests/deployment_api_test.cpp)
       orocos_configure_executable(ocl_deployment_api_check)
       target_link_libraries(ocl_deployment_api_check orocos-ocl-deployment)
+
+      IF(OCL_OPCUA_FOUND)
+        add_executable(ocl_opcua_deployment_test tests/opcua_deployment_test.cpp)
+        orocos_configure_executable(ocl_opcua_deployment_test)
+        target_include_directories(ocl_opcua_deployment_test PRIVATE
+          ${RTT_OPCUA_INCLUDE_DIRS})
+        target_compile_options(ocl_opcua_deployment_test PRIVATE
+          ${RTT_OPCUA_CFLAGS_OTHER})
+        target_link_libraries(ocl_opcua_deployment_test
+          orocos-ocl-deployment-opcua ${RTT_OPCUA_LDFLAGS}
+          ${OROCOS-RTT_TYPEKIT_LIBRARIES})
+        add_test(NAME ocl_opcua_deployment_test
+          COMMAND ocl_opcua_deployment_test)
+      ENDIF(OCL_OPCUA_FOUND)
     ENDIF(BUILD_TESTING)
 
     ADD_SUBDIRECTORY( tests )

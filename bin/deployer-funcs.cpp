@@ -78,10 +78,11 @@ int deployerParseCmdLine(int                        argc,
                          std::vector<std::string>&  scriptFiles,
                          std::string&               name,
                          bool&                      requireNameService,
-                         bool&						deploymentOnlyChecked,
-						 int&						minNumberCPU,
+                         bool&                      deploymentOnlyChecked,
+                         int&                       minNumberCPU,
                          po::variables_map&         vm,
-                         po::options_description*   otherOptions)
+                         po::options_description*   otherOptions,
+                         bool                       includeNameServiceOption)
 {
 	std::string                         logLevel("info");	// set to valid default
 	po::options_description             options;
@@ -107,8 +108,6 @@ int deployerParseCmdLine(int                        argc,
 		 "Turn off RTT logging to the console (will still log to 'orocos.log')")
 		("check",
 		 "Only check component loading, connecting peers and ports. Returns 255 in case of errors.")
-        ("require-name-service",
-         "Require CORBA name service")
 		("minNumberCPU",
 		 po::value<int>(&minNumberCPU),
 		 "The minimum number of CPUs required for deployment (0 <= value) [0==no minimum (default)]")
@@ -116,6 +115,10 @@ int deployerParseCmdLine(int                        argc,
 		 po::value< std::vector<std::string> >(),
 		 "Name of deployer component (the --DeployerName flag is optional). If you provide a script or XML file name, that will be run instead.")
 		;
+	if (includeNameServiceOption) {
+		allowed.add_options()
+			("require-name-service", "Require CORBA name service");
+	}
     pos.add("DeployerName", -1);
 
 	// collate options
@@ -239,7 +242,7 @@ int deployerParseCmdLine(int                        argc,
             }
 		}
 	}
-	catch (std::logic_error e)
+	catch (const std::logic_error& e)
     {
 		std::cerr << "Exception:" << e.what() << std::endl << options << std::endl;
         return -1;
@@ -290,7 +293,7 @@ int enforceMinNumberCPU(const int minNumberCPU)
 
 void validate(boost::any& v,
               const std::vector<std::string>& values,
-              memorySize* target_type, int)
+              memorySize*, int)
 {
 //    using namespace boost::program_options;
 

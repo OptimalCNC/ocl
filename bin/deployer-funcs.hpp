@@ -48,6 +48,8 @@ namespace OCL
     \param vm The variables map into which the options are parsed.
 	\param otherOptions Caller can pass in other options to check for. If NULL,
 	then is ignored.
+	\param includeNameServiceOption Include the legacy CORBA naming-service
+	command-line option.
 	\return 0 if successful, otherwise an error code
 */
 extern int deployerParseCmdLine(
@@ -56,11 +58,12 @@ extern int deployerParseCmdLine(
 	std::string&                                    siteFile,
 	std::vector<std::string>&                       scriptFiles,
 	std::string&                                    name,
-    bool&                                           requireNameService,
-    bool&                                           deploymentOnlyChecked,
-	int&											minNumberCPU,
-    boost::program_options::variables_map&          vm,
-	boost::program_options::options_description*    otherOptions=NULL);
+	bool&                                           requireNameService,
+	bool&                                           deploymentOnlyChecked,
+	int&                                            minNumberCPU,
+	boost::program_options::variables_map&          vm,
+	boost::program_options::options_description*    otherOptions=NULL,
+	bool                                            includeNameServiceOption=true);
 
 
 /** Enforce a minimum number of CPUs required for deployment
