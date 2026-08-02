@@ -3,9 +3,15 @@
 
 #include "deployment/OpcUaDeploymentComponent.hpp"
 
+#include <rtt/InputPort.hpp>
 #include <rtt/OperationCaller.hpp>
+#include <rtt/OutputPort.hpp>
+#include <rtt/Property.hpp>
+#include <rtt/Service.hpp>
 #include <rtt/TaskContext.hpp>
+#include <rtt/base/AttributeBase.hpp>
 #include <rtt/deployment/ComponentLoader.hpp>
+#include <rtt/internal/DataSources.hpp>
 #include <rtt/opcua/object_model.hpp>
 #include <rtt/opcua/server.hpp>
 #include <rtt/opcua/task_context_proxy.hpp>
@@ -63,10 +69,27 @@ class EchoTask final : public RTT::TaskContext {
 public:
   explicit EchoTask(const std::string &name) : RTT::TaskContext(name) {
     addOperation("echo", &EchoTask::echo, this, RTT::ClientThread);
+    addProperty("Gain", gain);
+    addAttribute("Status", status);
+    addConstant("ModelName", model_name);
+    addPort(feedback);
+    addPort(command);
+
+    RTT::Service::shared_ptr diagnostics = RTT::Service::Create("diagnostics");
+    diagnostics->addOperation("statusCode", &EchoTask::statusCode, this,
+                              RTT::ClientThread);
+    BOOST_REQUIRE(provides()->addService(diagnostics));
   }
+
+  std::int32_t gain{7};
+  std::string status{"idle"};
+  std::string model_name{"echo-v1"};
+  RTT::OutputPort<std::int32_t> feedback{"Feedback"};
+  RTT::InputPort<std::int32_t> command{"Command"};
 
 private:
   std::int32_t echo(std::int32_t value) { return value; }
+  std::int32_t statusCode() { return 1; }
 };
 
 RTT::TaskContext *createEchoTask(std::string name) {
@@ -145,6 +168,42 @@ BOOST_AUTO_TEST_CASE(deployer_and_selected_local_peers_are_published) {
       local_proxy->getOperation("echo");
   BOOST_REQUIRE(echo.ready());
   BOOST_TEST(echo(42) == 42);
+
+  auto *gain = dynamic_cast<RTT::Property<std::int32_t> *>(
+      local_proxy->provides()->getProperty("Gain"));
+  BOOST_REQUIRE(gain != nullptr);
+  BOOST_TEST(gain->get() == 7);
+  gain->set(9);
+  BOOST_TEST(local.gain == 9);
+
+  RTT::base::AttributeBase *status =
+      local_proxy->provides()->getAttribute("Status");
+  BOOST_REQUIRE(status != nullptr);
+  auto *status_source = RTT::internal::AssignableDataSource<std::string>::narrow(
+      status->getDataSource().get());
+  BOOST_REQUIRE(status_source != nullptr);
+  status_source->set("remote-running");
+  BOOST_TEST(local.status == "remote-running");
+
+  RTT::base::AttributeBase *model_name =
+      local_proxy->provides()->getAttribute("ModelName");
+  BOOST_REQUIRE(model_name != nullptr);
+  BOOST_TEST(!model_name->getDataSource()->isAssignable());
+  auto *model_name_source = RTT::internal::DataSource<std::string>::narrow(
+      model_name->getDataSource().get());
+  BOOST_REQUIRE(model_name_source != nullptr);
+  BOOST_TEST(model_name_source->get() == "echo-v1");
+
+  BOOST_REQUIRE(local_proxy->ports()->getPort("Feedback") != nullptr);
+  BOOST_REQUIRE(local_proxy->ports()->getPort("Command") != nullptr);
+
+  RTT::Service::shared_ptr diagnostics =
+      local_proxy->provides()->getService("diagnostics");
+  BOOST_REQUIRE(diagnostics != nullptr);
+  RTT::OperationCaller<std::int32_t()> status_code =
+      diagnostics->getOperation("statusCode");
+  BOOST_REQUIRE(status_code.ready());
+  BOOST_TEST(status_code() == 1);
 
   BOOST_TEST(deployer.publishPeer(local.getName()));
   BOOST_REQUIRE(deployer.unpublishPeer(local.getName()));

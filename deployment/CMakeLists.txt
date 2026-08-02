@@ -66,6 +66,10 @@ IF ( BUILD_DEPLOYMENT )
           ${RTT_OPCUA_INCLUDE_DIRS})
         target_compile_options(ocl_opcua_deployment_test PRIVATE
           ${RTT_OPCUA_CFLAGS_OTHER})
+        IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+          target_compile_options(ocl_opcua_deployment_test PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+        ENDIF()
         target_link_libraries(ocl_opcua_deployment_test
           orocos-ocl-deployment-opcua ${RTT_OPCUA_LDFLAGS}
           ${OROCOS-RTT_TYPEKIT_LIBRARIES})
