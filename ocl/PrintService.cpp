@@ -13,7 +13,7 @@ namespace OCL
 
     /**
      * A service that provides basic printing to std::cout, std::cerr and the RTT::Logger.
-     * Can be loaded in scripts by writing 'requires("print")' on top of the file.
+     * Can be loaded in scripts by writing 'requests("print")' on top of the file.
      */
     class PrintService: public RTT::Service
     {

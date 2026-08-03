@@ -62,7 +62,7 @@ namespace OCL
 
     /**
      * A service that provides access to some useful Operating System functions.
-     * Can be loaded in scripts by writing 'requires("os")' on top of the file.
+     * Can be loaded in scripts by writing 'requests("os")' on top of the file.
      */
     class OSService: public RTT::Service
     {
@@ -178,4 +178,3 @@ namespace OCL
 }
 
 ORO_SERVICE_NAMED_PLUGIN( OCL::OSService, "os")
-
