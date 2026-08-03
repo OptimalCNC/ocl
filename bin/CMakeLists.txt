@@ -42,6 +42,10 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
     target_compile_definitions(deployer-opcua PRIVATE OCL_OPCUA_DEPLOYER)
     target_include_directories(deployer-opcua PRIVATE ${RTT_OPCUA_INCLUDE_DIRS})
     target_compile_options(deployer-opcua PRIVATE ${RTT_OPCUA_CFLAGS_OTHER})
+    IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+      target_compile_options(deployer-opcua PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+    ENDIF()
     target_link_libraries(deployer-opcua ${EXTRA_DEPS})
     target_link_libraries(deployer-opcua
       ${OROCOS-RTT_LIBRARIES} orocos-ocl-taskbrowser
@@ -53,6 +57,10 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
       ${RTT_OPCUA_INCLUDE_DIRS})
     target_compile_options(ctaskbrowser-opcua PRIVATE
       ${RTT_OPCUA_CFLAGS_OTHER})
+    IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+      target_compile_options(ctaskbrowser-opcua PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+    ENDIF()
     target_link_libraries(ctaskbrowser-opcua ${EXTRA_DEPS})
     target_link_libraries(ctaskbrowser-opcua
       ${OROCOS-RTT_LIBRARIES} orocos-ocl-taskbrowser
