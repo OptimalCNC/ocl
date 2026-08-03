@@ -15,6 +15,7 @@
 #include <rtt/opcua/object_model.hpp>
 #include <rtt/opcua/server.hpp>
 #include <rtt/opcua/task_context_proxy.hpp>
+#include <rtt/opcua/type_protocol.hpp>
 #include <rtt/typekit/RealTimeTypekit.hpp>
 #include <rtt/types/Types.hpp>
 
@@ -63,6 +64,9 @@ void loadCanonicalTypes() {
   if (RTT::types::Types()->type("Int32") == nullptr) {
     RTT::types::RealTimeTypekitPlugin().loadTypes();
   }
+  std::string error;
+  BOOST_REQUIRE_MESSAGE(RTT::opcua::registerCanonicalTypeProtocols(&error),
+                        error);
 }
 
 class EchoTask final : public RTT::TaskContext {
@@ -140,10 +144,19 @@ OCL::OpcUaDeploymentOptions deploymentOptions() {
 BOOST_AUTO_TEST_CASE(deployer_and_selected_local_peers_are_published) {
   loadCanonicalTypes();
   EchoTask local("LocalEcho");
+  EchoTask removed_before_start("RemovedBeforeStart");
   OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
 
-  BOOST_TEST(deployer.opcUaReady());
+  BOOST_TEST(!deployer.opcUaReady());
   BOOST_TEST(deployer.opcUaEndpoint().find("opc.tcp://127.0.0.1:") == 0U);
+  BOOST_REQUIRE(deployer.addPeer(&local));
+  BOOST_REQUIRE(deployer.publishPeer(local.getName()));
+  BOOST_REQUIRE(deployer.addPeer(&removed_before_start));
+  BOOST_REQUIRE(deployer.publishPeer(removed_before_start.getName()));
+  BOOST_REQUIRE(deployer.unpublishPeer(removed_before_start.getName()));
+  BOOST_REQUIRE(deployer.startOpcUa());
+  BOOST_TEST(deployer.opcUaReady());
+  BOOST_TEST(deployer.startOpcUa());
 
   std::string error;
   auto deployer_proxy = RTT::opcua::TaskContextProxy::create(
@@ -152,15 +165,21 @@ BOOST_AUTO_TEST_CASE(deployer_and_selected_local_peers_are_published) {
   RTT::Service::shared_ptr opcua = deployer_proxy->provides("opcua");
   BOOST_REQUIRE(opcua != nullptr);
   RTT::OperationCaller<bool()> ready = opcua->getOperation("ready");
+  RTT::OperationCaller<bool()> start = opcua->getOperation("start");
   RTT::OperationCaller<std::string()> endpoint =
       opcua->getOperation("endpoint");
   BOOST_REQUIRE(ready.ready());
+  BOOST_REQUIRE(start.ready());
   BOOST_REQUIRE(endpoint.ready());
   BOOST_TEST(ready());
+  BOOST_TEST(start());
   BOOST_TEST(endpoint() == deployer.opcUaEndpoint());
 
-  BOOST_REQUIRE(deployer.addPeer(&local));
-  BOOST_REQUIRE(deployer.publishPeer(local.getName()));
+  auto removed_proxy = RTT::opcua::TaskContextProxy::create(
+      deployer.opcUaEndpoint(), removed_before_start.getName(), {}, &error);
+  BOOST_TEST(removed_proxy == nullptr);
+  BOOST_TEST(!error.empty());
+
   auto local_proxy = RTT::opcua::TaskContextProxy::create(
       deployer.opcUaEndpoint(), local.getName(), {}, &error);
   BOOST_REQUIRE_MESSAGE(local_proxy != nullptr, error);
@@ -179,8 +198,9 @@ BOOST_AUTO_TEST_CASE(deployer_and_selected_local_peers_are_published) {
   RTT::base::AttributeBase *status =
       local_proxy->provides()->getAttribute("Status");
   BOOST_REQUIRE(status != nullptr);
-  auto *status_source = RTT::internal::AssignableDataSource<std::string>::narrow(
-      status->getDataSource().get());
+  auto *status_source =
+      RTT::internal::AssignableDataSource<std::string>::narrow(
+          status->getDataSource().get());
   BOOST_REQUIRE(status_source != nullptr);
   status_source->set("remote-running");
   BOOST_TEST(local.status == "remote-running");
@@ -219,7 +239,10 @@ BOOST_AUTO_TEST_CASE(site_file_server_components_are_published) {
   OCL::OpcUaDeploymentOptions options = deploymentOptions();
   TemporarySiteFile site_file(options.server.port);
   OCL::OpcUaDeploymentComponent deployer("Deployer", site_file.path().string(),
-                                          options);
+                                         options);
+  BOOST_TEST(!deployer.opcUaReady());
+  BOOST_REQUIRE(deployer.startOpcUa());
+  BOOST_TEST(deployer.startOpcUa());
 
   std::string error;
   auto site_proxy = RTT::opcua::TaskContextProxy::create(
@@ -245,6 +268,8 @@ BOOST_AUTO_TEST_CASE(remote_components_are_owned_as_aliased_deployer_peers) {
   BOOST_REQUIRE_MESSAGE(remote_registration.has_value(), error);
 
   OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  BOOST_TEST(!deployer.opcUaReady());
+  BOOST_REQUIRE(deployer.startOpcUa());
   auto deployer_proxy = RTT::opcua::TaskContextProxy::create(
       deployer.opcUaEndpoint(), deployer.getName(), {}, &error);
   BOOST_REQUIRE_MESSAGE(deployer_proxy != nullptr, error);

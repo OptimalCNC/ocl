@@ -2,11 +2,12 @@
 
 #include <rtt/Logger.hpp>
 #include <rtt/Service.hpp>
+#include <rtt/opcua/type_protocol.hpp>
 
+#include <exception>
 #include <map>
 #include <mutex>
 #include <optional>
-#include <stdexcept>
 #include <utility>
 
 namespace OCL {
@@ -20,19 +21,12 @@ public:
   };
 
   explicit Impl(OpcUaDeploymentOptions configured_options)
-      : options(std::move(configured_options)), server(options.server) {
-    std::string error;
-    if (!server.start(&error)) {
-      throw std::runtime_error("failed to start OPC UA deployment server: " +
-                               error);
-    }
-    model =
-        std::make_unique<RTT::opcua::ObjectModel>(server, options.object_model);
-  }
+      : options(std::move(configured_options)), server(options.server) {}
 
   OpcUaDeploymentOptions options;
   RTT::opcua::Server server;
   std::unique_ptr<RTT::opcua::ObjectModel> model;
+  std::map<std::string, RTT::TaskContext *, std::less<>> pending;
   std::map<RTT::TaskContext *, RTT::opcua::ComponentRegistration> published;
   std::map<std::string, RemotePeer> remote_peers;
   mutable std::mutex mutex;
@@ -46,6 +40,10 @@ OpcUaDeploymentComponent::OpcUaDeploymentComponent(
       impl_(std::make_unique<Impl>(std::move(options))) {
   RTT::Service::shared_ptr opcua = RTT::Service::Create("opcua", this);
   opcua->doc("Publishes RTT components and manages remote OPC UA peers.");
+  opcua
+      ->addOperation("start", &OpcUaDeploymentComponent::startOpcUa, this,
+                     RTT::ClientThread)
+      .doc("Starts the OPC UA endpoint after local package imports complete.");
   opcua
       ->addOperation("ready", &OpcUaDeploymentComponent::opcUaReady, this,
                      RTT::ClientThread)
@@ -142,6 +140,77 @@ std::string OpcUaDeploymentComponent::opcUaLastError() const {
   return impl_->last_error;
 }
 
+bool OpcUaDeploymentComponent::startOpcUa() {
+  if (!impl_) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  if (impl_->server.isRunning() && impl_->model) {
+    impl_->last_error.clear();
+    return true;
+  }
+
+  std::string error;
+  if (!RTT::opcua::registerCanonicalTypeProtocols(&error)) {
+    impl_->last_error = error.empty()
+                            ? "failed to register canonical OPC UA types"
+                            : std::move(error);
+    RTT::Logger::log().logf(RTT::Logger::Error,
+                            "OpcUaDeploymentComponent::startOpcUa", "%s",
+                            impl_->last_error.c_str());
+    return false;
+  }
+  if (!impl_->server.start(&error)) {
+    impl_->last_error =
+        error.empty() ? "failed to start OPC UA server" : std::move(error);
+    RTT::Logger::log().logf(RTT::Logger::Error,
+                            "OpcUaDeploymentComponent::startOpcUa", "%s",
+                            impl_->last_error.c_str());
+    return false;
+  }
+
+  try {
+    auto model = std::make_unique<RTT::opcua::ObjectModel>(
+        impl_->server, impl_->options.object_model);
+    std::map<RTT::TaskContext *, RTT::opcua::ComponentRegistration> published;
+    for (const auto &[name, component] : impl_->pending) {
+      auto registration = model->registerComponent(*component, &error);
+      if (!registration) {
+        published.clear();
+        model.reset();
+        impl_->server.stop();
+        impl_->last_error =
+            "failed to publish OPC UA component '" + name +
+            "': " + (error.empty() ? "unknown error" : std::move(error));
+        RTT::Logger::log().logf(RTT::Logger::Error,
+                                "OpcUaDeploymentComponent::startOpcUa", "%s",
+                                impl_->last_error.c_str());
+        return false;
+      }
+      published.emplace(component, std::move(*registration));
+    }
+
+    impl_->model = std::move(model);
+    impl_->published = std::move(published);
+    impl_->pending.clear();
+    impl_->last_error.clear();
+    return true;
+  } catch (const std::exception &exception) {
+    impl_->server.stop();
+    impl_->last_error = "failed to construct OPC UA object model: " +
+                        std::string(exception.what());
+  } catch (...) {
+    impl_->server.stop();
+    impl_->last_error =
+        "failed to construct OPC UA object model: unknown exception";
+  }
+  RTT::Logger::log().logf(RTT::Logger::Error,
+                          "OpcUaDeploymentComponent::startOpcUa", "%s",
+                          impl_->last_error.c_str());
+  return false;
+}
+
 bool OpcUaDeploymentComponent::publishPeer(const std::string &peer_name) {
   RTT::TaskContext *component =
       peer_name == "this" || peer_name == getName() ? this : getPeer(peer_name);
@@ -168,14 +237,20 @@ bool OpcUaDeploymentComponent::unpublishPeer(const std::string &peer_name) {
 
   std::lock_guard<std::mutex> lock(impl_->mutex);
   const auto found = impl_->published.find(component);
-  if (found == impl_->published.end()) {
+  if (found != impl_->published.end()) {
+    impl_->published.erase(found);
+    impl_->last_error.clear();
+    return true;
+  }
+  const auto pending = impl_->pending.find(component->getName());
+  if (pending == impl_->pending.end() || pending->second != component) {
     impl_->last_error = "peer is not published: " + peer_name;
     RTT::Logger::log().logf(RTT::Logger::Error,
                             "OpcUaDeploymentComponent::unpublishPeer", "%s",
                             impl_->last_error.c_str());
     return false;
   }
-  impl_->published.erase(found);
+  impl_->pending.erase(pending);
   impl_->last_error.clear();
   return true;
 }
@@ -323,6 +398,24 @@ bool OpcUaDeploymentComponent::publishComponent(RTT::TaskContext &component) {
     impl_->last_error.clear();
     return true;
   }
+  const auto pending = impl_->pending.find(component.getName());
+  if (pending != impl_->pending.end()) {
+    if (pending->second != &component) {
+      impl_->last_error =
+          "another component is queued with name: " + component.getName();
+      RTT::Logger::log().logf(RTT::Logger::Error,
+                              "OpcUaDeploymentComponent::publishComponent",
+                              "%s", impl_->last_error.c_str());
+      return false;
+    }
+    impl_->last_error.clear();
+    return true;
+  }
+  if (!impl_->model) {
+    impl_->pending.emplace(component.getName(), &component);
+    impl_->last_error.clear();
+    return true;
+  }
 
   std::string error;
   auto registration = impl_->model->registerComponent(component, &error);
@@ -346,6 +439,10 @@ void OpcUaDeploymentComponent::unpublishComponent(
   }
   std::lock_guard<std::mutex> lock(impl_->mutex);
   impl_->published.erase(component);
+  const auto pending = impl_->pending.find(component->getName());
+  if (pending != impl_->pending.end() && pending->second == component) {
+    impl_->pending.erase(pending);
+  }
 }
 
 bool OpcUaDeploymentComponent::fail(const char *operation,

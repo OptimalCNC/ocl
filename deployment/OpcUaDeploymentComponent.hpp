@@ -32,6 +32,7 @@ public:
   bool opcUaReady() const;
   std::string opcUaEndpoint() const;
   std::string opcUaLastError() const;
+  bool startOpcUa();
 
   bool publishPeer(const std::string &peer_name);
   bool unpublishPeer(const std::string &peer_name);

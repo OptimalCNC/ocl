@@ -53,6 +53,7 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
       ${RTT_OPCUA_LDFLAGS} ${EXTRA_LIBRARIES})
 
     orocos_executable(ctaskbrowser-opcua ctaskbrowser-opcua.cpp)
+    target_compile_definitions(ctaskbrowser-opcua PRIVATE RTT_STATIC)
     target_include_directories(ctaskbrowser-opcua PRIVATE
       ${RTT_OPCUA_INCLUDE_DIRS})
     target_compile_options(ctaskbrowser-opcua PRIVATE
@@ -65,6 +66,35 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
     target_link_libraries(ctaskbrowser-opcua
       ${OROCOS-RTT_LIBRARIES} orocos-ocl-taskbrowser
       ${RTT_OPCUA_LDFLAGS} ${EXTRA_LIBRARIES})
+
+    IF(BUILD_TESTING)
+      add_test(NAME ctaskbrowser_opcua_help
+        COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --help)
+      set_tests_properties(ctaskbrowser_opcua_help PROPERTIES
+        PASS_REGULAR_EXPRESSION "--import PACKAGE")
+
+      add_test(NAME ctaskbrowser_opcua_missing_import
+        COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --import)
+      set_tests_properties(ctaskbrowser_opcua_missing_import PROPERTIES
+        WILL_FAIL TRUE)
+
+      add_test(NAME ctaskbrowser_opcua_empty_import
+        COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --import= --help)
+      set_tests_properties(ctaskbrowser_opcua_empty_import PROPERTIES
+        WILL_FAIL TRUE)
+
+      add_test(NAME ctaskbrowser_opcua_repeated_imports
+        COMMAND $<TARGET_FILE:ctaskbrowser-opcua>
+          --import fixture_a --import=fixture_b --help)
+      set_tests_properties(ctaskbrowser_opcua_repeated_imports PROPERTIES
+        PASS_REGULAR_EXPRESSION "--import PACKAGE")
+
+      add_test(NAME ctaskbrowser_opcua_positional_arity
+        COMMAND $<TARGET_FILE:ctaskbrowser-opcua>
+          opc.tcp://127.0.0.1:4840/rtt Component Extra)
+      set_tests_properties(ctaskbrowser_opcua_positional_arity PROPERTIES
+        WILL_FAIL TRUE)
+    ENDIF()
 
     configure_file(deployer.in deployer-opcua @ONLY)
     configure_file(ctaskbrowser.in ctaskbrowser-opcua @ONLY)
