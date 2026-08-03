@@ -19,10 +19,6 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <rtt/types/TypekitPlugin.hpp>
-#include <rtt/types/SequenceTypeInfo.hpp>
-
-#include <string>
-#include <vector>
 
 namespace OCL
 {
@@ -34,13 +30,6 @@ namespace OCL
     {
     public:
         bool loadTypes() {
-            RTT::types::TypeInfoRepository::Instance()->addType( new types::SequenceTypeInfo<vector<std::string> >("strings") );
-
-            // segfaults when reading out an element of this type:
-            //RTT::types::TypeInfoRepository::Instance()->addType( new types::SequenceTypeInfo<vector<bool> >("bools") );
-
-            RTT::types::TypeInfoRepository::Instance()->addType( new types::SequenceTypeInfo<vector<int> >("ints") );
-
             return true;
         }
 
@@ -54,4 +43,3 @@ namespace OCL
 }
 
 ORO_TYPEKIT_PLUGIN( OCL::OCLTypekit )
-

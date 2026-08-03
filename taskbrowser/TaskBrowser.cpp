@@ -1939,7 +1939,7 @@ namespace OCL
         cout << "     myProgram.isRunning [enter]" <<nl;
         cout << "   = false" <<nl;
         cout << "  and display the contents of complex data types (vector, array,...) :"<<nl;
-        cout << "     array(6)" <<nl;
+        cout << "     Float64Array(6)" <<nl;
         cout << "   = {0, 0, 0, 0, 0, 0}" <<nl;
 
         cout <<titlecol("Changing Attributes and Properties")<<nl;
