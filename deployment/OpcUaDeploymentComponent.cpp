@@ -4,11 +4,14 @@
 #include <rtt/Service.hpp>
 #include <rtt/opcua/type_protocol.hpp>
 
+#include <algorithm>
 #include <exception>
+#include <iterator>
 #include <map>
 #include <mutex>
 #include <optional>
 #include <utility>
+#include <vector>
 
 namespace OCL {
 
@@ -56,6 +59,12 @@ OpcUaDeploymentComponent::OpcUaDeploymentComponent(
       ->addOperation("lastError", &OpcUaDeploymentComponent::opcUaLastError,
                      this, RTT::ClientThread)
       .doc("Returns the most recent OPC UA deployment error.");
+  opcua
+      ->addOperation("unsupportedResources",
+                     &OpcUaDeploymentComponent::unsupportedResources, this,
+                     RTT::ClientThread)
+      .doc("Returns resources omitted from an OPC UA component publication.")
+      .arg("component", "Published RTT component name.");
   opcua
       ->addOperation("publishPeer", &OpcUaDeploymentComponent::publishPeer,
                      this, RTT::ClientThread)
@@ -138,6 +147,35 @@ std::string OpcUaDeploymentComponent::opcUaLastError() const {
   }
   std::lock_guard<std::mutex> lock(impl_->mutex);
   return impl_->last_error;
+}
+
+std::vector<std::string> OpcUaDeploymentComponent::unsupportedResources(
+    const std::string &component_name) const {
+  if (!impl_) {
+    return {};
+  }
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  const auto published =
+      std::find_if(impl_->published.begin(), impl_->published.end(),
+                   [&component_name](const auto &entry) {
+                     return entry.second.name() == component_name;
+                   });
+  if (!impl_->model || published == impl_->published.end()) {
+    impl_->last_error = "no such published OPC UA component: " + component_name;
+    return {};
+  }
+
+  const std::vector<RTT::opcua::UnsupportedResource> diagnostics =
+      impl_->model->unsupportedResources(component_name);
+  std::vector<std::string> messages;
+  messages.reserve(diagnostics.size());
+  std::transform(diagnostics.begin(), diagnostics.end(),
+                 std::back_inserter(messages),
+                 [](const RTT::opcua::UnsupportedResource &resource) {
+                   return resource.message();
+                 });
+  impl_->last_error.clear();
+  return messages;
 }
 
 bool OpcUaDeploymentComponent::startOpcUa() {

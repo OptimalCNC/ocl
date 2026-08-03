@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace OCL {
 
@@ -32,6 +33,8 @@ public:
   bool opcUaReady() const;
   std::string opcUaEndpoint() const;
   std::string opcUaLastError() const;
+  std::vector<std::string>
+  unsupportedResources(const std::string &component_name) const;
   bool startOpcUa();
 
   bool publishPeer(const std::string &peer_name);

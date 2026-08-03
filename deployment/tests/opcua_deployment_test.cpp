@@ -17,6 +17,7 @@
 #include <rtt/opcua/task_context_proxy.hpp>
 #include <rtt/opcua/type_protocol.hpp>
 #include <rtt/typekit/RealTimeTypekit.hpp>
+#include <rtt/types/TemplateTypeInfo.hpp>
 #include <rtt/types/Types.hpp>
 
 #include <arpa/inet.h>
@@ -30,8 +31,15 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace {
+
+struct UnsupportedValue {
+  std::int32_t value{0};
+};
+
+constexpr std::string_view kUnsupportedTypeName = "/test/OclUnsupportedValue";
 
 std::uint16_t unusedLoopbackPort() {
   const int socket_fd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -67,6 +75,11 @@ void loadCanonicalTypes() {
   std::string error;
   BOOST_REQUIRE_MESSAGE(RTT::opcua::registerCanonicalTypeProtocols(&error),
                         error);
+  if (RTT::types::Types()->type(std::string(kUnsupportedTypeName)) == nullptr) {
+    BOOST_REQUIRE(RTT::types::Types()->addType(
+        new RTT::types::TemplateTypeInfo<UnsupportedValue, false>(
+            std::string(kUnsupportedTypeName))));
+  }
 }
 
 class EchoTask final : public RTT::TaskContext {
@@ -94,6 +107,16 @@ public:
 private:
   std::int32_t echo(std::int32_t value) { return value; }
   std::int32_t statusCode() { return 1; }
+};
+
+class UnsupportedTask final : public RTT::TaskContext {
+public:
+  UnsupportedTask() : RTT::TaskContext("UnsupportedPeer") {
+    addProperty("Value", value);
+  }
+
+private:
+  UnsupportedValue value{7};
 };
 
 RTT::TaskContext *createEchoTask(std::string name) {
@@ -144,6 +167,7 @@ OCL::OpcUaDeploymentOptions deploymentOptions() {
 BOOST_AUTO_TEST_CASE(deployer_and_selected_local_peers_are_published) {
   loadCanonicalTypes();
   EchoTask local("LocalEcho");
+  UnsupportedTask unsupported;
   EchoTask removed_before_start("RemovedBeforeStart");
   OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
 
@@ -151,6 +175,8 @@ BOOST_AUTO_TEST_CASE(deployer_and_selected_local_peers_are_published) {
   BOOST_TEST(deployer.opcUaEndpoint().find("opc.tcp://127.0.0.1:") == 0U);
   BOOST_REQUIRE(deployer.addPeer(&local));
   BOOST_REQUIRE(deployer.publishPeer(local.getName()));
+  BOOST_REQUIRE(deployer.addPeer(&unsupported));
+  BOOST_REQUIRE(deployer.publishPeer(unsupported.getName()));
   BOOST_REQUIRE(deployer.addPeer(&removed_before_start));
   BOOST_REQUIRE(deployer.publishPeer(removed_before_start.getName()));
   BOOST_REQUIRE(deployer.unpublishPeer(removed_before_start.getName()));
@@ -174,6 +200,24 @@ BOOST_AUTO_TEST_CASE(deployer_and_selected_local_peers_are_published) {
   BOOST_TEST(ready());
   BOOST_TEST(start());
   BOOST_TEST(endpoint() == deployer.opcUaEndpoint());
+
+  const std::vector<std::string> expected_diagnostics{
+      "OPC UA: component 'UnsupportedPeer' skipped property 'Value' because "
+      "RTT type '/test/OclUnsupportedValue' has no registered OPC UA "
+      "protocol."};
+  BOOST_TEST(deployer.unsupportedResources(unsupported.getName()) ==
+             expected_diagnostics);
+  RTT::OperationCaller<std::vector<std::string>(const std::string &)>
+      unsupported_resources = opcua->getOperation("unsupportedResources");
+  RTT::OperationCaller<std::string()> last_error =
+      opcua->getOperation("lastError");
+  BOOST_REQUIRE(unsupported_resources.ready());
+  BOOST_REQUIRE(last_error.ready());
+  BOOST_TEST(unsupported_resources(unsupported.getName()) ==
+             expected_diagnostics);
+  BOOST_TEST(unsupported_resources("MissingComponent").empty());
+  BOOST_TEST(last_error() ==
+             "no such published OPC UA component: MissingComponent");
 
   auto removed_proxy = RTT::opcua::TaskContextProxy::create(
       deployer.opcUaEndpoint(), removed_before_start.getName(), {}, &error);
