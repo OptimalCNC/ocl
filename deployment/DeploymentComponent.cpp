@@ -280,6 +280,8 @@ namespace OCL
 
     bool DeploymentComponent::componentLoaded(RTT::TaskContext*) { return true; }
 
+    bool DeploymentComponent::componentCanUnload(RTT::TaskContext*) { return true; }
+
     void DeploymentComponent::componentUnloaded(TaskContext*) { }
 
     DeploymentComponent::~DeploymentComponent()
@@ -2128,6 +2130,9 @@ namespace OCL
 
         if ( it->loaded && it->instance ) {
             if ( !it->instance->isRunning() ) {
+                if (!componentCanUnload(it->instance)) {
+                    return false;
+                }
                 if (!it->proxy ) {
                     // allow subclasses to do cleanup too.
                     componentUnloaded( it->instance );

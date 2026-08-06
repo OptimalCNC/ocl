@@ -186,6 +186,13 @@ namespace OCL
          */
         bool unloadComponentImpl( CompMap::iterator cit );
 
+        /**
+         * Hook function for subclasses. Allows a subclass to reject unloading
+         * a stopped component before any teardown begins.
+         * @return false if the component must remain loaded.
+         */
+        virtual bool componentCanUnload(RTT::TaskContext* c);
+
 
         /**
          * Hook function for subclasses. Allows a subclass

@@ -46,6 +46,7 @@ public:
 
 protected:
   bool componentLoaded(RTT::TaskContext *component) override;
+  bool componentCanUnload(RTT::TaskContext *component) override;
   void componentUnloaded(RTT::TaskContext *component) override;
 
 private:

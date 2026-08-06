@@ -445,6 +445,25 @@ bool OpcUaDeploymentComponent::componentLoaded(RTT::TaskContext *component) {
   return true;
 }
 
+bool OpcUaDeploymentComponent::componentCanUnload(RTT::TaskContext *component) {
+  if (!impl_ || component == nullptr) {
+    return true;
+  }
+
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  const auto published = impl_->published.find(component->getName());
+  if (published == impl_->published.end() || published->second != component) {
+    return true;
+  }
+
+  impl_->last_error = "Cannot unload component '" + component->getName() +
+                      "': it is published through OPC UA";
+  RTT::Logger::log().logf(RTT::Logger::Error,
+                          "OpcUaDeploymentComponent::componentCanUnload", "%s",
+                          impl_->last_error.c_str());
+  return false;
+}
+
 void OpcUaDeploymentComponent::componentUnloaded(RTT::TaskContext *) {}
 
 bool OpcUaDeploymentComponent::fail(const char *operation,

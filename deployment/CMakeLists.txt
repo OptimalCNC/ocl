@@ -82,7 +82,8 @@ IF ( BUILD_DEPLOYMENT )
             strict_publication_is_static_and_idempotent
             server_metadata_does_not_auto_publish
             failed_start_freezes_registry_and_can_retry
-            remote_components_remain_aliased_client_peers)
+            remote_components_remain_aliased_client_peers
+            published_component_unload_is_rejected)
           add_test(
             NAME ocl_opcua_deployment_${case}
             COMMAND ocl_opcua_deployment_test --run_test=${case})

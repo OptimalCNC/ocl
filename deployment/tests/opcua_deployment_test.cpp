@@ -156,6 +156,26 @@ RTT::TaskContext *createEchoTask(std::string name) {
   return new EchoTask(std::move(name));
 }
 
+class FactoryRegistration final {
+public:
+  FactoryRegistration(std::string name, RTT::ComponentLoaderSignature factory)
+      : name_(std::move(name)) {
+    RTT::ComponentLoader::Instance()->addFactory(name_, factory);
+  }
+
+  ~FactoryRegistration() {
+    auto &factories = const_cast<RTT::FactoryMap &>(
+        RTT::ComponentLoader::Instance()->getFactories());
+    factories.erase(name_);
+  }
+
+  FactoryRegistration(const FactoryRegistration &) = delete;
+  FactoryRegistration &operator=(const FactoryRegistration &) = delete;
+
+private:
+  std::string name_;
+};
+
 class TemporarySiteFile final {
 public:
   explicit TemporarySiteFile(std::uint16_t port)
@@ -382,4 +402,36 @@ BOOST_AUTO_TEST_CASE(remote_components_remain_aliased_client_peers) {
   BOOST_TEST(!deployer.disconnectRemote("RemoteAlias"));
   BOOST_TEST(!deployer.opcUaLastError().empty());
   remote_server.stop();
+}
+
+BOOST_AUTO_TEST_CASE(published_component_unload_is_rejected) {
+  loadRttTypes();
+  FactoryRegistration factory("TestEchoTask", &createEchoTask);
+
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  BOOST_REQUIRE(deployer.loadComponent("DisposableEcho", "TestEchoTask"));
+  BOOST_REQUIRE(deployer.unloadComponent("DisposableEcho"));
+  BOOST_TEST(deployer.getPeer("DisposableEcho") == nullptr);
+
+  BOOST_REQUIRE(deployer.loadComponent("ManagedEcho", "TestEchoTask"));
+  RTT::TaskContext *const managed = deployer.getPeer("ManagedEcho");
+  BOOST_REQUIRE(managed != nullptr);
+  BOOST_REQUIRE(deployer.startOpcUa());
+  BOOST_REQUIRE(deployer.publishComponent("ManagedEcho"));
+
+  std::string error;
+  auto proxy = RTT::opcua::TaskContextProxy::create(deployer.opcUaEndpointUrl(),
+                                                    "ManagedEcho", {}, &error);
+  BOOST_REQUIRE_MESSAGE(proxy != nullptr, error);
+
+  BOOST_REQUIRE(!deployer.unloadComponent("ManagedEcho"));
+  BOOST_TEST(deployer.opcUaLastError() ==
+             "Cannot unload component 'ManagedEcho': it is published through "
+             "OPC UA");
+  BOOST_TEST(deployer.getPeer("ManagedEcho") == managed);
+
+  RTT::OperationCaller<std::int32_t(std::int32_t)> echo =
+      proxy->getOperation("echo");
+  BOOST_REQUIRE(echo.ready());
+  BOOST_TEST(echo(21) == 21);
 }
