@@ -3,19 +3,15 @@
 
 #include "deployment/OpcUaDeploymentComponent.hpp"
 
-#include <rtt/InputPort.hpp>
 #include <rtt/OperationCaller.hpp>
-#include <rtt/OutputPort.hpp>
 #include <rtt/Property.hpp>
 #include <rtt/Service.hpp>
 #include <rtt/TaskContext.hpp>
-#include <rtt/base/AttributeBase.hpp>
 #include <rtt/deployment/ComponentLoader.hpp>
-#include <rtt/internal/DataSources.hpp>
+#include <rtt/opcua/datatype_registry.hpp>
 #include <rtt/opcua/object_model.hpp>
 #include <rtt/opcua/server.hpp>
 #include <rtt/opcua/task_context_proxy.hpp>
-#include <rtt/opcua/type_protocol.hpp>
 #include <rtt/typekit/RealTimeTypekit.hpp>
 #include <rtt/types/TemplateTypeInfo.hpp>
 #include <rtt/types/Types.hpp>
@@ -25,11 +21,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -68,14 +66,58 @@ std::uint16_t unusedLoopbackPort() {
   return port;
 }
 
-void loadCanonicalTypes() {
+class OccupiedLoopbackPort final {
+public:
+  OccupiedLoopbackPort() : socket_fd_(::socket(AF_INET, SOCK_STREAM, 0)) {
+    if (socket_fd_ < 0) {
+      throw std::runtime_error("failed to create occupied-port socket");
+    }
+
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_port = 0;
+    if (::bind(socket_fd_, reinterpret_cast<const sockaddr *>(&address),
+               sizeof(address)) != 0 ||
+        ::listen(socket_fd_, 1) != 0) {
+      release();
+      throw std::runtime_error("failed to occupy loopback port");
+    }
+
+    socklen_t size = sizeof(address);
+    if (::getsockname(socket_fd_, reinterpret_cast<sockaddr *>(&address),
+                      &size) != 0) {
+      release();
+      throw std::runtime_error("failed to inspect occupied loopback port");
+    }
+    port_ = ntohs(address.sin_port);
+  }
+
+  ~OccupiedLoopbackPort() { release(); }
+
+  OccupiedLoopbackPort(const OccupiedLoopbackPort &) = delete;
+  OccupiedLoopbackPort &operator=(const OccupiedLoopbackPort &) = delete;
+
+  std::uint16_t port() const noexcept { return port_; }
+
+  void release() noexcept {
+    if (socket_fd_ >= 0) {
+      ::close(socket_fd_);
+      socket_fd_ = -1;
+    }
+  }
+
+private:
+  int socket_fd_{-1};
+  std::uint16_t port_{0U};
+};
+
+void loadRttTypes(bool add_unsupported_type = false) {
   if (RTT::types::Types()->type("Int32") == nullptr) {
     RTT::types::RealTimeTypekitPlugin().loadTypes();
   }
-  std::string error;
-  BOOST_REQUIRE_MESSAGE(RTT::opcua::registerCanonicalTypeProtocols(&error),
-                        error);
-  if (RTT::types::Types()->type(std::string(kUnsupportedTypeName)) == nullptr) {
+  if (add_unsupported_type &&
+      RTT::types::Types()->type(std::string(kUnsupportedTypeName)) == nullptr) {
     BOOST_REQUIRE(RTT::types::Types()->addType(
         new RTT::types::TemplateTypeInfo<UnsupportedValue, false>(
             std::string(kUnsupportedTypeName))));
@@ -87,26 +129,17 @@ public:
   explicit EchoTask(const std::string &name) : RTT::TaskContext(name) {
     addOperation("echo", &EchoTask::echo, this, RTT::ClientThread);
     addProperty("Gain", gain);
-    addAttribute("Status", status);
-    addConstant("ModelName", model_name);
-    addPort(feedback);
-    addPort(command);
+  }
 
-    RTT::Service::shared_ptr diagnostics = RTT::Service::Create("diagnostics");
-    diagnostics->addOperation("statusCode", &EchoTask::statusCode, this,
-                              RTT::ClientThread);
-    BOOST_REQUIRE(provides()->addService(diagnostics));
+  void addLateResource() {
+    addOperation("lateEcho", &EchoTask::lateEcho, this, RTT::ClientThread);
   }
 
   std::int32_t gain{7};
-  std::string status{"idle"};
-  std::string model_name{"echo-v1"};
-  RTT::OutputPort<std::int32_t> feedback{"Feedback"};
-  RTT::InputPort<std::int32_t> command{"Command"};
 
 private:
   std::int32_t echo(std::int32_t value) { return value; }
-  std::int32_t statusCode() { return 1; }
+  std::int32_t lateEcho(std::int32_t value) { return value + 1; }
 };
 
 class UnsupportedTask final : public RTT::TaskContext {
@@ -154,143 +187,139 @@ private:
   std::filesystem::path path_;
 };
 
-OCL::OpcUaDeploymentOptions deploymentOptions() {
+OCL::OpcUaDeploymentOptions
+deploymentOptions(std::uint16_t port = unusedLoopbackPort()) {
   OCL::OpcUaDeploymentOptions options;
-  options.server.port = unusedLoopbackPort();
-  options.object_model.reconcile_interval = std::chrono::milliseconds(10);
+  options.server.port = port;
   options.proxy.request_timeout = std::chrono::milliseconds(500);
   return options;
 }
 
+std::vector<std::string> operationNames(RTT::Service::shared_ptr service) {
+  std::vector<std::string> names = service->getNames();
+  std::sort(names.begin(), names.end());
+  return names;
+}
+
+const std::vector<std::string> kExpectedOpcUaOperations{
+    "endpointUrl",      "isRunning", "lastError",
+    "publishComponent", "start",     "unsupportedResources"};
+
 } // namespace
 
-BOOST_AUTO_TEST_CASE(deployer_and_selected_local_peers_are_published) {
-  loadCanonicalTypes();
+BOOST_AUTO_TEST_CASE(explicit_start_publishes_only_deployer) {
+  loadRttTypes();
   EchoTask local("LocalEcho");
-  UnsupportedTask unsupported;
-  EchoTask removed_before_start("RemovedBeforeStart");
   OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
 
-  BOOST_TEST(!deployer.opcUaReady());
-  BOOST_TEST(deployer.opcUaEndpoint().find("opc.tcp://127.0.0.1:") == 0U);
+  RTT::Service::shared_ptr local_opcua = deployer.provides("opcua");
+  BOOST_REQUIRE(local_opcua != nullptr);
+  BOOST_TEST(operationNames(local_opcua) == kExpectedOpcUaOperations);
+  BOOST_TEST(!deployer.opcUaIsRunning());
+  BOOST_TEST(deployer.opcUaEndpointUrl().find("opc.tcp://127.0.0.1:") == 0U);
   BOOST_REQUIRE(deployer.addPeer(&local));
-  BOOST_REQUIRE(deployer.publishPeer(local.getName()));
-  BOOST_REQUIRE(deployer.addPeer(&unsupported));
-  BOOST_REQUIRE(deployer.publishPeer(unsupported.getName()));
-  BOOST_REQUIRE(deployer.addPeer(&removed_before_start));
-  BOOST_REQUIRE(deployer.publishPeer(removed_before_start.getName()));
-  BOOST_REQUIRE(deployer.unpublishPeer(removed_before_start.getName()));
+  BOOST_TEST(!deployer.publishComponent(local.getName()));
+  BOOST_TEST(deployer.opcUaLastError() == "OPC UA server is not running");
+
   BOOST_REQUIRE(deployer.startOpcUa());
-  BOOST_TEST(deployer.opcUaReady());
-  BOOST_TEST(deployer.startOpcUa());
+  BOOST_TEST(deployer.opcUaIsRunning());
+  BOOST_TEST(deployer.opcUaLastError().empty());
 
   std::string error;
   auto deployer_proxy = RTT::opcua::TaskContextProxy::create(
-      deployer.opcUaEndpoint(), deployer.getName(), {}, &error);
+      deployer.opcUaEndpointUrl(), deployer.getName(), {}, &error);
   BOOST_REQUIRE_MESSAGE(deployer_proxy != nullptr, error);
-  RTT::Service::shared_ptr opcua = deployer_proxy->provides("opcua");
-  BOOST_REQUIRE(opcua != nullptr);
-  RTT::OperationCaller<bool()> ready = opcua->getOperation("ready");
-  RTT::OperationCaller<bool()> start = opcua->getOperation("start");
-  RTT::OperationCaller<std::string()> endpoint =
-      opcua->getOperation("endpoint");
-  BOOST_REQUIRE(ready.ready());
-  BOOST_REQUIRE(start.ready());
-  BOOST_REQUIRE(endpoint.ready());
-  BOOST_TEST(ready());
-  BOOST_TEST(start());
-  BOOST_TEST(endpoint() == deployer.opcUaEndpoint());
-
-  const std::vector<std::string> expected_diagnostics{
-      "OPC UA: component 'UnsupportedPeer' skipped property 'Value' because "
-      "RTT type '/test/OclUnsupportedValue' has no registered OPC UA "
-      "protocol."};
-  BOOST_TEST(deployer.unsupportedResources(unsupported.getName()) ==
-             expected_diagnostics);
-  RTT::OperationCaller<std::vector<std::string>(const std::string &)>
-      unsupported_resources = opcua->getOperation("unsupportedResources");
-  RTT::OperationCaller<std::string()> last_error =
-      opcua->getOperation("lastError");
-  BOOST_REQUIRE(unsupported_resources.ready());
-  BOOST_REQUIRE(last_error.ready());
-  BOOST_TEST(unsupported_resources(unsupported.getName()) ==
-             expected_diagnostics);
-  BOOST_TEST(unsupported_resources("MissingComponent").empty());
-  BOOST_TEST(last_error() ==
-             "no such published OPC UA component: MissingComponent");
-
-  auto removed_proxy = RTT::opcua::TaskContextProxy::create(
-      deployer.opcUaEndpoint(), removed_before_start.getName(), {}, &error);
-  BOOST_TEST(removed_proxy == nullptr);
-  BOOST_TEST(!error.empty());
+  RTT::Service::shared_ptr remote_opcua = deployer_proxy->provides("opcua");
+  BOOST_REQUIRE(remote_opcua != nullptr);
+  BOOST_TEST(operationNames(remote_opcua) == kExpectedOpcUaOperations);
 
   auto local_proxy = RTT::opcua::TaskContextProxy::create(
-      deployer.opcUaEndpoint(), local.getName(), {}, &error);
+      deployer.opcUaEndpointUrl(), local.getName(), {}, &error);
+  BOOST_TEST(local_proxy == nullptr);
+  BOOST_TEST(!error.empty());
+
+  const std::string endpoint = deployer.opcUaEndpointUrl();
+  BOOST_TEST(!deployer.publishComponent("MissingPeer"));
+  BOOST_TEST(!deployer.opcUaLastError().empty());
+  BOOST_TEST(deployer.startOpcUa());
+  BOOST_TEST(deployer.opcUaLastError().empty());
+  BOOST_TEST(deployer.opcUaEndpointUrl() == endpoint);
+}
+
+BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
+  loadRttTypes(true);
+  EchoTask local("LocalEcho");
+  UnsupportedTask unsupported;
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  BOOST_REQUIRE(deployer.addPeer(&local));
+  BOOST_REQUIRE(deployer.addPeer(&unsupported));
+  BOOST_REQUIRE(deployer.startOpcUa());
+
+  BOOST_TEST(!deployer.publishComponent("MissingPeer"));
+  BOOST_TEST(deployer.opcUaLastError() ==
+             "no such local RTT component: MissingPeer");
+  BOOST_REQUIRE(deployer.publishComponent(local.getName()));
+
+  std::string error;
+  auto local_proxy = RTT::opcua::TaskContextProxy::create(
+      deployer.opcUaEndpointUrl(), local.getName(), {}, &error);
   BOOST_REQUIRE_MESSAGE(local_proxy != nullptr, error);
   RTT::OperationCaller<std::int32_t(std::int32_t)> echo =
       local_proxy->getOperation("echo");
   BOOST_REQUIRE(echo.ready());
   BOOST_TEST(echo(42) == 42);
-
   auto *gain = dynamic_cast<RTT::Property<std::int32_t> *>(
       local_proxy->provides()->getProperty("Gain"));
   BOOST_REQUIRE(gain != nullptr);
-  BOOST_TEST(gain->get() == 7);
   gain->set(9);
   BOOST_TEST(local.gain == 9);
 
-  RTT::base::AttributeBase *status =
-      local_proxy->provides()->getAttribute("Status");
-  BOOST_REQUIRE(status != nullptr);
-  auto *status_source =
-      RTT::internal::AssignableDataSource<std::string>::narrow(
-          status->getDataSource().get());
-  BOOST_REQUIRE(status_source != nullptr);
-  status_source->set("remote-running");
-  BOOST_TEST(local.status == "remote-running");
+  local.addLateResource();
+  BOOST_TEST(deployer.publishComponent(local.getName()));
+  BOOST_REQUIRE_MESSAGE(local_proxy->synchronize(&error), error);
+  BOOST_TEST(!local_proxy->provides()->hasMember("lateEcho"));
 
-  RTT::base::AttributeBase *model_name =
-      local_proxy->provides()->getAttribute("ModelName");
-  BOOST_REQUIRE(model_name != nullptr);
-  BOOST_TEST(!model_name->getDataSource()->isAssignable());
-  auto *model_name_source = RTT::internal::DataSource<std::string>::narrow(
-      model_name->getDataSource().get());
-  BOOST_REQUIRE(model_name_source != nullptr);
-  BOOST_TEST(model_name_source->get() == "echo-v1");
-
-  BOOST_REQUIRE(local_proxy->ports()->getPort("Feedback") != nullptr);
-  BOOST_REQUIRE(local_proxy->ports()->getPort("Command") != nullptr);
-
-  RTT::Service::shared_ptr diagnostics =
-      local_proxy->provides()->getService("diagnostics");
-  BOOST_REQUIRE(diagnostics != nullptr);
-  RTT::OperationCaller<std::int32_t()> status_code =
-      diagnostics->getOperation("statusCode");
-  BOOST_REQUIRE(status_code.ready());
-  BOOST_TEST(status_code() == 1);
-
-  BOOST_TEST(deployer.publishPeer(local.getName()));
-  BOOST_REQUIRE(deployer.unpublishPeer(local.getName()));
-  local_proxy = RTT::opcua::TaskContextProxy::create(
-      deployer.opcUaEndpoint(), local.getName(), {}, &error);
-  BOOST_TEST(local_proxy == nullptr);
+  BOOST_TEST(!deployer.publishComponent(unsupported.getName()));
+  BOOST_TEST(deployer.opcUaLastError() ==
+             "strict OPC UA publication rejected component 'UnsupportedPeer'");
+  const std::vector<std::string> expected_diagnostics{
+      "OPC UA: component 'UnsupportedPeer' rejected property 'Value' because "
+      "RTT type '/test/OclUnsupportedValue' has no registered OPC UA "
+      "protocol."};
+  BOOST_TEST(deployer.unsupportedResources(unsupported.getName()) ==
+             expected_diagnostics);
+  auto unsupported_proxy = RTT::opcua::TaskContextProxy::create(
+      deployer.opcUaEndpointUrl(), unsupported.getName(), {}, &error);
+  BOOST_TEST(unsupported_proxy == nullptr);
   BOOST_TEST(!error.empty());
+
+  BOOST_REQUIRE(deployer.addPeer(local_proxy.get(), "RemoteAlias"));
+  BOOST_TEST(!deployer.publishComponent("RemoteAlias"));
+  BOOST_TEST(deployer.opcUaLastError() ==
+             "refusing to publish remote OPC UA proxy: RemoteAlias");
 }
 
-BOOST_AUTO_TEST_CASE(site_file_server_components_are_published) {
-  loadCanonicalTypes();
+BOOST_AUTO_TEST_CASE(server_metadata_does_not_auto_publish) {
+  loadRttTypes();
   RTT::ComponentLoader::Instance()->addFactory("TestEchoTask", &createEchoTask);
   OCL::OpcUaDeploymentOptions options = deploymentOptions();
   TemporarySiteFile site_file(options.server.port);
   OCL::OpcUaDeploymentComponent deployer("Deployer", site_file.path().string(),
                                          options);
-  BOOST_TEST(!deployer.opcUaReady());
+
+  BOOST_TEST(!deployer.opcUaIsRunning());
+  BOOST_REQUIRE(deployer.getPeer("SiteEcho") != nullptr);
   BOOST_REQUIRE(deployer.startOpcUa());
-  BOOST_TEST(deployer.startOpcUa());
 
   std::string error;
   auto site_proxy = RTT::opcua::TaskContextProxy::create(
-      deployer.opcUaEndpoint(), "SiteEcho", {}, &error);
+      deployer.opcUaEndpointUrl(), "SiteEcho", {}, &error);
+  BOOST_TEST(site_proxy == nullptr);
+  BOOST_TEST(!error.empty());
+
+  BOOST_REQUIRE(deployer.publishComponent("SiteEcho"));
+  site_proxy = RTT::opcua::TaskContextProxy::create(deployer.opcUaEndpointUrl(),
+                                                    "SiteEcho", {}, &error);
   BOOST_REQUIRE_MESSAGE(site_proxy != nullptr, error);
   RTT::OperationCaller<std::int32_t(std::int32_t)> echo =
       site_proxy->getOperation("echo");
@@ -298,37 +327,43 @@ BOOST_AUTO_TEST_CASE(site_file_server_components_are_published) {
   BOOST_TEST(echo(84) == 84);
 }
 
-BOOST_AUTO_TEST_CASE(remote_components_are_owned_as_aliased_deployer_peers) {
-  loadCanonicalTypes();
+BOOST_AUTO_TEST_CASE(failed_start_freezes_registry_and_can_retry) {
+  loadRttTypes();
+  OccupiedLoopbackPort occupied;
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "",
+                                         deploymentOptions(occupied.port()));
+
+  BOOST_TEST(!RTT::opcua::dataTypeRegistryFrozen());
+  BOOST_TEST(!deployer.startOpcUa());
+  BOOST_TEST(!deployer.opcUaIsRunning());
+  BOOST_TEST(RTT::opcua::dataTypeRegistryFrozen());
+  const std::string startup_error = deployer.opcUaLastError();
+  BOOST_TEST(!startup_error.empty());
+  BOOST_TEST(deployer.opcUaLastError() == startup_error);
+
+  occupied.release();
+  BOOST_REQUIRE(deployer.startOpcUa());
+  BOOST_TEST(deployer.opcUaIsRunning());
+  BOOST_TEST(RTT::opcua::dataTypeRegistryFrozen());
+  BOOST_TEST(deployer.opcUaLastError().empty());
+}
+
+BOOST_AUTO_TEST_CASE(remote_components_remain_aliased_client_peers) {
+  loadRttTypes();
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  BOOST_REQUIRE(deployer.startOpcUa());
 
   RTT::opcua::ServerOptions remote_options;
   remote_options.port = unusedLoopbackPort();
   RTT::opcua::Server remote_server(remote_options);
   std::string error;
   BOOST_REQUIRE_MESSAGE(remote_server.start(&error), error);
-  RTT::opcua::ObjectModel remote_model(remote_server);
   EchoTask remote("RemoteEcho");
-  auto remote_registration = remote_model.registerComponent(remote, &error);
-  BOOST_REQUIRE_MESSAGE(remote_registration.has_value(), error);
+  RTT::opcua::ObjectModel remote_model(remote_server);
+  BOOST_REQUIRE_MESSAGE(remote_model.publishComponent(remote, &error), error);
 
-  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
-  BOOST_TEST(!deployer.opcUaReady());
-  BOOST_REQUIRE(deployer.startOpcUa());
-  auto deployer_proxy = RTT::opcua::TaskContextProxy::create(
-      deployer.opcUaEndpoint(), deployer.getName(), {}, &error);
-  BOOST_REQUIRE_MESSAGE(deployer_proxy != nullptr, error);
-  RTT::Service::shared_ptr opcua = deployer_proxy->provides("opcua");
-  BOOST_REQUIRE(opcua != nullptr);
-  RTT::OperationCaller<bool(const std::string &, const std::string &,
-                            const std::string &)>
-      connect_remote = opcua->getOperation("connectRemote");
-  RTT::OperationCaller<bool(const std::string &)> disconnect_remote =
-      opcua->getOperation("disconnectRemote");
-  BOOST_REQUIRE(connect_remote.ready());
-  BOOST_REQUIRE(disconnect_remote.ready());
-  BOOST_REQUIRE(connect_remote(remote_server.endpointUrl(), remote.getName(),
-                               "RemoteAlias"));
-
+  BOOST_REQUIRE(deployer.connectRemote(remote_server.endpointUrl(),
+                                       remote.getName(), "RemoteAlias"));
   RTT::TaskContext *peer = deployer.getPeer("RemoteAlias");
   BOOST_REQUIRE(peer != nullptr);
   BOOST_TEST(peer->getName() == remote.getName());
@@ -341,8 +376,10 @@ BOOST_AUTO_TEST_CASE(remote_components_are_owned_as_aliased_deployer_peers) {
   BOOST_TEST(deployer.connectRemote(remote_server.endpointUrl(),
                                     remote.getName(), "RemoteAlias"));
   BOOST_TEST(deployer.synchronizeRemote("RemoteAlias"));
-  BOOST_REQUIRE(disconnect_remote("RemoteAlias"));
+  BOOST_TEST(!deployer.publishComponent("RemoteAlias"));
+  BOOST_REQUIRE(deployer.disconnectRemote("RemoteAlias"));
   BOOST_TEST(deployer.getPeer("RemoteAlias") == nullptr);
   BOOST_TEST(!deployer.disconnectRemote("RemoteAlias"));
   BOOST_TEST(!deployer.opcUaLastError().empty());
+  remote_server.stop();
 }

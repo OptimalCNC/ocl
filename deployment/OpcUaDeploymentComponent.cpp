@@ -2,6 +2,7 @@
 
 #include <rtt/Logger.hpp>
 #include <rtt/Service.hpp>
+#include <rtt/opcua/datatype_registry.hpp>
 #include <rtt/opcua/type_protocol.hpp>
 
 #include <algorithm>
@@ -9,14 +10,39 @@
 #include <iterator>
 #include <map>
 #include <mutex>
-#include <optional>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 namespace OCL {
 
+namespace {
+
+std::vector<std::string> diagnosticMessages(
+    const std::vector<RTT::opcua::UnsupportedResource> &diagnostics) {
+  std::vector<std::string> messages;
+  messages.reserve(diagnostics.size());
+  std::transform(diagnostics.begin(), diagnostics.end(),
+                 std::back_inserter(messages),
+                 [](const RTT::opcua::UnsupportedResource &resource) {
+                   return resource.message();
+                 });
+  return messages;
+}
+
+} // namespace
+
 class OpcUaDeploymentComponent::Impl {
 public:
+  enum class State {
+    created,
+    starting,
+    running,
+    start_failed,
+    stopping,
+    destroyed,
+  };
+
   struct RemotePeer {
     std::string endpoint_url;
     std::string component_name;
@@ -29,10 +55,11 @@ public:
   OpcUaDeploymentOptions options;
   RTT::opcua::Server server;
   std::unique_ptr<RTT::opcua::ObjectModel> model;
-  std::map<std::string, RTT::TaskContext *, std::less<>> pending;
-  std::map<RTT::TaskContext *, RTT::opcua::ComponentRegistration> published;
+  std::map<std::string, RTT::TaskContext *, std::less<>> published;
+  std::map<std::string, std::vector<std::string>, std::less<>> diagnostics;
   std::map<std::string, RemotePeer> remote_peers;
   mutable std::mutex mutex;
+  State state{State::created};
   std::string last_error;
 };
 
@@ -48,12 +75,12 @@ OpcUaDeploymentComponent::OpcUaDeploymentComponent(
                      RTT::ClientThread)
       .doc("Starts the OPC UA endpoint after local package imports complete.");
   opcua
-      ->addOperation("ready", &OpcUaDeploymentComponent::opcUaReady, this,
-                     RTT::ClientThread)
+      ->addOperation("isRunning", &OpcUaDeploymentComponent::opcUaIsRunning,
+                     this, RTT::ClientThread)
       .doc("Reports whether the OPC UA deployment server is running.");
   opcua
-      ->addOperation("endpoint", &OpcUaDeploymentComponent::opcUaEndpoint, this,
-                     RTT::ClientThread)
+      ->addOperation("endpointUrl", &OpcUaDeploymentComponent::opcUaEndpointUrl,
+                     this, RTT::ClientThread)
       .doc("Returns the OPC UA endpoint URL.");
   opcua
       ->addOperation("lastError", &OpcUaDeploymentComponent::opcUaLastError,
@@ -63,54 +90,14 @@ OpcUaDeploymentComponent::OpcUaDeploymentComponent(
       ->addOperation("unsupportedResources",
                      &OpcUaDeploymentComponent::unsupportedResources, this,
                      RTT::ClientThread)
-      .doc("Returns resources omitted from an OPC UA component publication.")
-      .arg("component", "Published RTT component name.");
+      .doc("Returns diagnostics from a rejected component publication.")
+      .arg("component", "RTT component name.");
   opcua
-      ->addOperation("publishPeer", &OpcUaDeploymentComponent::publishPeer,
-                     this, RTT::ClientThread)
-      .doc("Publishes a deployer peer on this OPC UA endpoint.")
-      .arg("peer", "Peer name known to this deployer.");
-  opcua
-      ->addOperation("unpublishPeer", &OpcUaDeploymentComponent::unpublishPeer,
-                     this, RTT::ClientThread)
-      .doc("Removes a deployer peer from this OPC UA endpoint.")
-      .arg("peer", "Peer name known to this deployer.");
-  opcua
-      ->addOperation("connectRemote", &OpcUaDeploymentComponent::connectRemote,
-                     this, RTT::ClientThread)
-      .doc("Creates an owned proxy for a remote OPC UA component.")
-      .arg("endpoint", "Remote OPC UA endpoint URL.")
-      .arg("component", "Remote RTT component name.")
-      .arg("peer", "Local peer name, or empty to use the component name.");
-  opcua
-      ->addOperation("disconnectRemote",
-                     &OpcUaDeploymentComponent::disconnectRemote, this,
+      ->addOperation("publishComponent",
+                     &OpcUaDeploymentComponent::publishComponent, this,
                      RTT::ClientThread)
-      .doc("Disconnects and destroys an OPC UA remote peer.")
-      .arg("peer", "Local peer name.");
-  opcua
-      ->addOperation("synchronizeRemote",
-                     &OpcUaDeploymentComponent::synchronizeRemote, this,
-                     RTT::ClientThread)
-      .doc("Refreshes an OPC UA remote peer interface atomically.")
-      .arg("peer", "Local peer name.");
-
-  if (!publishComponent(*this)) {
-    throw std::runtime_error("failed to publish OPC UA deployer: " +
-                             opcUaLastError());
-  }
-
-  // DeploymentComponent loads the site file in its base constructor, before
-  // this subclass can receive componentLoaded() callbacks.
-  for (const auto &[component_name, component] : compmap) {
-    if (component.instance == nullptr || !component.server || component.proxy) {
-      continue;
-    }
-    if (!publishComponent(*component.instance)) {
-      throw std::runtime_error("failed to publish site component '" +
-                               component_name + "': " + opcUaLastError());
-    }
-  }
+      .doc("Publishes one local RTT component on the running endpoint.")
+      .arg("component", "Local RTT component name.");
 }
 
 OpcUaDeploymentComponent::~OpcUaDeploymentComponent() {
@@ -118,27 +105,51 @@ OpcUaDeploymentComponent::~OpcUaDeploymentComponent() {
     return;
   }
 
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->state = Impl::State::stopping;
+  }
+
+  impl_->server.stop();
+
+  std::unique_ptr<RTT::opcua::ObjectModel> model;
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    model = std::move(impl_->model);
+  }
+  model.reset();
+
   std::map<std::string, Impl::RemotePeer> remote_peers;
-  std::map<RTT::TaskContext *, RTT::opcua::ComponentRegistration> published;
   {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     remote_peers.swap(impl_->remote_peers);
-    published.swap(impl_->published);
+    impl_->published.clear();
   }
   for (auto &[peer_name, remote] : remote_peers) {
     RTT::TaskContext::removePeer(peer_name);
     remote.proxy->disconnect();
   }
   remote_peers.clear();
-  published.clear();
+  {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->state = Impl::State::destroyed;
+  }
 }
 
-bool OpcUaDeploymentComponent::opcUaReady() const {
-  return impl_ && impl_->server.isRunning();
+bool OpcUaDeploymentComponent::opcUaIsRunning() const {
+  if (!impl_) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->state == Impl::State::running && impl_->server.isRunning();
 }
 
-std::string OpcUaDeploymentComponent::opcUaEndpoint() const {
-  return impl_ ? impl_->server.endpointUrl() : std::string{};
+std::string OpcUaDeploymentComponent::opcUaEndpointUrl() const {
+  if (!impl_) {
+    return {};
+  }
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->server.endpointUrl();
 }
 
 std::string OpcUaDeploymentComponent::opcUaLastError() const {
@@ -155,27 +166,9 @@ std::vector<std::string> OpcUaDeploymentComponent::unsupportedResources(
     return {};
   }
   std::lock_guard<std::mutex> lock(impl_->mutex);
-  const auto published =
-      std::find_if(impl_->published.begin(), impl_->published.end(),
-                   [&component_name](const auto &entry) {
-                     return entry.second.name() == component_name;
-                   });
-  if (!impl_->model || published == impl_->published.end()) {
-    impl_->last_error = "no such published OPC UA component: " + component_name;
-    return {};
-  }
-
-  const std::vector<RTT::opcua::UnsupportedResource> diagnostics =
-      impl_->model->unsupportedResources(component_name);
-  std::vector<std::string> messages;
-  messages.reserve(diagnostics.size());
-  std::transform(diagnostics.begin(), diagnostics.end(),
-                 std::back_inserter(messages),
-                 [](const RTT::opcua::UnsupportedResource &resource) {
-                   return resource.message();
-                 });
-  impl_->last_error.clear();
-  return messages;
+  const auto found = impl_->diagnostics.find(component_name);
+  return found == impl_->diagnostics.end() ? std::vector<std::string>{}
+                                           : found->second;
 }
 
 bool OpcUaDeploymentComponent::startOpcUa() {
@@ -184,111 +177,142 @@ bool OpcUaDeploymentComponent::startOpcUa() {
   }
 
   std::lock_guard<std::mutex> lock(impl_->mutex);
-  if (impl_->server.isRunning() && impl_->model) {
+  if (impl_->state == Impl::State::running) {
+    if (!impl_->server.isRunning()) {
+      impl_->last_error = impl_->server.lastError();
+      if (impl_->last_error.empty()) {
+        impl_->last_error = "OPC UA server is not running";
+      }
+      return false;
+    }
     impl_->last_error.clear();
     return true;
   }
+  if (impl_->state == Impl::State::stopping ||
+      impl_->state == Impl::State::destroyed) {
+    impl_->last_error = "OPC UA deployment service is stopping";
+    return false;
+  }
+
+  impl_->state = Impl::State::starting;
+  auto fail_start = [this](std::string error) {
+    impl_->state = Impl::State::start_failed;
+    impl_->last_error = std::move(error);
+    RTT::Logger::log().logf(RTT::Logger::Error,
+                            "OpcUaDeploymentComponent::startOpcUa", "%s",
+                            impl_->last_error.c_str());
+    return false;
+  };
 
   std::string error;
   if (!RTT::opcua::registerCanonicalTypeProtocols(&error)) {
-    impl_->last_error = error.empty()
-                            ? "failed to register canonical OPC UA types"
-                            : std::move(error);
-    RTT::Logger::log().logf(RTT::Logger::Error,
-                            "OpcUaDeploymentComponent::startOpcUa", "%s",
-                            impl_->last_error.c_str());
-    return false;
+    return fail_start(error.empty()
+                          ? "failed to register canonical OPC UA types"
+                          : std::move(error));
+  }
+  if (!RTT::opcua::freezeDataTypeRegistry(&error)) {
+    return fail_start(error.empty()
+                          ? "failed to freeze OPC UA datatype registry"
+                          : std::move(error));
   }
   if (!impl_->server.start(&error)) {
-    impl_->last_error =
-        error.empty() ? "failed to start OPC UA server" : std::move(error);
-    RTT::Logger::log().logf(RTT::Logger::Error,
-                            "OpcUaDeploymentComponent::startOpcUa", "%s",
-                            impl_->last_error.c_str());
-    return false;
+    impl_->server.stop();
+    return fail_start(error.empty() ? "failed to start OPC UA server"
+                                    : std::move(error));
   }
 
+  std::unique_ptr<RTT::opcua::ObjectModel> candidate;
   try {
-    auto model = std::make_unique<RTT::opcua::ObjectModel>(
+    candidate = std::make_unique<RTT::opcua::ObjectModel>(
         impl_->server, impl_->options.object_model);
-    std::map<RTT::TaskContext *, RTT::opcua::ComponentRegistration> published;
-    for (const auto &[name, component] : impl_->pending) {
-      auto registration = model->registerComponent(*component, &error);
-      if (!registration) {
-        published.clear();
-        model.reset();
-        impl_->server.stop();
-        impl_->last_error =
-            "failed to publish OPC UA component '" + name +
-            "': " + (error.empty() ? "unknown error" : std::move(error));
-        RTT::Logger::log().logf(RTT::Logger::Error,
-                                "OpcUaDeploymentComponent::startOpcUa", "%s",
-                                impl_->last_error.c_str());
-        return false;
-      }
-      published.emplace(component, std::move(*registration));
+    std::vector<RTT::opcua::UnsupportedResource> diagnostics;
+    if (!candidate->publishComponent(*this, &error, &diagnostics)) {
+      impl_->diagnostics.insert_or_assign(getName(),
+                                          diagnosticMessages(diagnostics));
+      impl_->server.stop();
+      candidate.reset();
+      return fail_start(error.empty() ? "failed to publish OPC UA deployer"
+                                      : std::move(error));
     }
 
-    impl_->model = std::move(model);
-    impl_->published = std::move(published);
-    impl_->pending.clear();
+    impl_->published.insert_or_assign(getName(), this);
+    impl_->diagnostics.erase(getName());
+    impl_->model = std::move(candidate);
+    impl_->state = Impl::State::running;
     impl_->last_error.clear();
     return true;
   } catch (const std::exception &exception) {
     impl_->server.stop();
-    impl_->last_error = "failed to construct OPC UA object model: " +
-                        std::string(exception.what());
+    candidate.reset();
+    return fail_start(exception.what());
   } catch (...) {
     impl_->server.stop();
-    impl_->last_error =
-        "failed to construct OPC UA object model: unknown exception";
+    candidate.reset();
+    return fail_start("failed to construct OPC UA object model");
   }
-  RTT::Logger::log().logf(RTT::Logger::Error,
-                          "OpcUaDeploymentComponent::startOpcUa", "%s",
-                          impl_->last_error.c_str());
-  return false;
 }
 
-bool OpcUaDeploymentComponent::publishPeer(const std::string &peer_name) {
-  RTT::TaskContext *component =
-      peer_name == "this" || peer_name == getName() ? this : getPeer(peer_name);
-  if (component == nullptr) {
-    return fail("publishPeer", "no such deployer peer: " + peer_name);
+bool OpcUaDeploymentComponent::publishComponent(
+    const std::string &component_name) {
+  if (!impl_) {
+    return false;
   }
-  if (dynamic_cast<RTT::opcua::TaskContextProxy *>(component) != nullptr) {
-    return fail("publishPeer",
-                "refusing to republish remote proxy: " + peer_name);
-  }
-  return publishComponent(*component);
-}
-
-bool OpcUaDeploymentComponent::unpublishPeer(const std::string &peer_name) {
-  RTT::TaskContext *component =
-      peer_name == "this" || peer_name == getName() ? this : getPeer(peer_name);
-  if (component == nullptr) {
-    return fail("unpublishPeer", "no such deployer peer: " + peer_name);
-  }
-  if (component == this) {
-    return fail("unpublishPeer",
-                "the deployer endpoint cannot unpublish itself");
-  }
-
   std::lock_guard<std::mutex> lock(impl_->mutex);
-  const auto found = impl_->published.find(component);
-  if (found != impl_->published.end()) {
-    impl_->published.erase(found);
-    impl_->last_error.clear();
-    return true;
-  }
-  const auto pending = impl_->pending.find(component->getName());
-  if (pending == impl_->pending.end() || pending->second != component) {
-    impl_->last_error = "peer is not published: " + peer_name;
+  if (impl_->state != Impl::State::running || !impl_->model) {
+    impl_->last_error = "OPC UA server is not running";
     RTT::Logger::log().logf(RTT::Logger::Error,
-                            "OpcUaDeploymentComponent::unpublishPeer", "%s",
+                            "OpcUaDeploymentComponent::publishComponent", "%s",
                             impl_->last_error.c_str());
     return false;
   }
-  impl_->pending.erase(pending);
+
+  RTT::TaskContext *component =
+      component_name == getName() ? this : getPeer(component_name);
+  if (component == nullptr) {
+    impl_->last_error = "no such local RTT component: " + component_name;
+    RTT::Logger::log().logf(RTT::Logger::Error,
+                            "OpcUaDeploymentComponent::publishComponent", "%s",
+                            impl_->last_error.c_str());
+    return false;
+  }
+  if (dynamic_cast<RTT::opcua::TaskContextProxy *>(component) != nullptr) {
+    impl_->last_error =
+        "refusing to publish remote OPC UA proxy: " + component_name;
+    RTT::Logger::log().logf(RTT::Logger::Error,
+                            "OpcUaDeploymentComponent::publishComponent", "%s",
+                            impl_->last_error.c_str());
+    return false;
+  }
+  const auto found = impl_->published.find(component_name);
+  if (found != impl_->published.end()) {
+    if (found->second != component) {
+      impl_->last_error =
+          "another RTT component instance is already published as: " +
+          component_name;
+      RTT::Logger::log().logf(RTT::Logger::Error,
+                              "OpcUaDeploymentComponent::publishComponent",
+                              "%s", impl_->last_error.c_str());
+      return false;
+    }
+    impl_->last_error.clear();
+    return true;
+  }
+
+  std::vector<RTT::opcua::UnsupportedResource> diagnostics;
+  std::string error;
+  if (!impl_->model->publishComponent(*component, &error, &diagnostics)) {
+    impl_->diagnostics.insert_or_assign(component_name,
+                                        diagnosticMessages(diagnostics));
+    impl_->last_error =
+        error.empty() ? "failed to publish RTT component" : std::move(error);
+    RTT::Logger::log().logf(RTT::Logger::Error,
+                            "OpcUaDeploymentComponent::publishComponent", "%s",
+                            impl_->last_error.c_str());
+    return false;
+  }
+
+  impl_->published.emplace(component_name, component);
+  impl_->diagnostics.erase(component_name);
   impl_->last_error.clear();
   return true;
 }
@@ -418,70 +442,10 @@ bool OpcUaDeploymentComponent::componentLoaded(RTT::TaskContext *component) {
     }
     return false;
   }
-
-  const auto configured = compmap.find(component->getName());
-  if (configured != compmap.end() && configured->second.server) {
-    return publishComponent(*component);
-  }
   return true;
 }
 
-void OpcUaDeploymentComponent::componentUnloaded(RTT::TaskContext *component) {
-  unpublishComponent(component);
-}
-
-bool OpcUaDeploymentComponent::publishComponent(RTT::TaskContext &component) {
-  std::lock_guard<std::mutex> lock(impl_->mutex);
-  if (impl_->published.find(&component) != impl_->published.end()) {
-    impl_->last_error.clear();
-    return true;
-  }
-  const auto pending = impl_->pending.find(component.getName());
-  if (pending != impl_->pending.end()) {
-    if (pending->second != &component) {
-      impl_->last_error =
-          "another component is queued with name: " + component.getName();
-      RTT::Logger::log().logf(RTT::Logger::Error,
-                              "OpcUaDeploymentComponent::publishComponent",
-                              "%s", impl_->last_error.c_str());
-      return false;
-    }
-    impl_->last_error.clear();
-    return true;
-  }
-  if (!impl_->model) {
-    impl_->pending.emplace(component.getName(), &component);
-    impl_->last_error.clear();
-    return true;
-  }
-
-  std::string error;
-  auto registration = impl_->model->registerComponent(component, &error);
-  if (!registration) {
-    impl_->last_error =
-        error.empty() ? "failed to publish RTT component" : std::move(error);
-    RTT::Logger::log().logf(RTT::Logger::Error,
-                            "OpcUaDeploymentComponent::publishComponent", "%s",
-                            impl_->last_error.c_str());
-    return false;
-  }
-  impl_->published.emplace(&component, std::move(*registration));
-  impl_->last_error.clear();
-  return true;
-}
-
-void OpcUaDeploymentComponent::unpublishComponent(
-    RTT::TaskContext *component) noexcept {
-  if (!impl_ || component == nullptr) {
-    return;
-  }
-  std::lock_guard<std::mutex> lock(impl_->mutex);
-  impl_->published.erase(component);
-  const auto pending = impl_->pending.find(component->getName());
-  if (pending != impl_->pending.end() && pending->second == component) {
-    impl_->pending.erase(pending);
-  }
-}
+void OpcUaDeploymentComponent::componentUnloaded(RTT::TaskContext *) {}
 
 bool OpcUaDeploymentComponent::fail(const char *operation,
                                     std::string error) const {

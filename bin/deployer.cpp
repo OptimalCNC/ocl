@@ -202,20 +202,6 @@ int main(int argc, char** argv)
                                        iter->c_str());
                 }
             }
-#ifdef OCL_OPCUA_DEPLOYER
-            if (result) {
-                result = dc.startOpcUa();
-                if (result) {
-                    Logger::log().logf(Logger::Info, "DeployerOpcUa",
-                                       "Listening on %s",
-                                       dc.opcUaEndpoint().c_str());
-                } else {
-                    Logger::log().logf(Logger::Error, "DeployerOpcUa",
-                                       "Failed to start OPC UA endpoint: %s",
-                                       dc.opcUaLastError().c_str());
-                }
-            }
-#endif
             rc = (result ? 0 : -1);
 
 #ifdef USE_TASKBROWSER

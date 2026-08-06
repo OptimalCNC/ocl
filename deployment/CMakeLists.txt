@@ -77,8 +77,16 @@ IF ( BUILD_DEPLOYMENT )
         target_link_libraries(ocl_opcua_deployment_test
           orocos-ocl-deployment-opcua ${RTT_OPCUA_LDFLAGS}
           ${OROCOS-RTT_TYPEKIT_LIBRARIES})
-        add_test(NAME ocl_opcua_deployment_test
-          COMMAND ocl_opcua_deployment_test)
+        foreach(case IN ITEMS
+            explicit_start_publishes_only_deployer
+            strict_publication_is_static_and_idempotent
+            server_metadata_does_not_auto_publish
+            failed_start_freezes_registry_and_can_retry
+            remote_components_remain_aliased_client_peers)
+          add_test(
+            NAME ocl_opcua_deployment_${case}
+            COMMAND ocl_opcua_deployment_test --run_test=${case})
+        endforeach()
       ENDIF(OCL_OPCUA_FOUND)
     ENDIF(BUILD_TESTING)
 

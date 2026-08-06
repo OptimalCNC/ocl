@@ -30,15 +30,13 @@ public:
   OpcUaDeploymentComponent &
   operator=(const OpcUaDeploymentComponent &) = delete;
 
-  bool opcUaReady() const;
-  std::string opcUaEndpoint() const;
+  bool startOpcUa();
+  bool opcUaIsRunning() const;
+  std::string opcUaEndpointUrl() const;
   std::string opcUaLastError() const;
+  bool publishComponent(const std::string &component_name);
   std::vector<std::string>
   unsupportedResources(const std::string &component_name) const;
-  bool startOpcUa();
-
-  bool publishPeer(const std::string &peer_name);
-  bool unpublishPeer(const std::string &peer_name);
 
   bool connectRemote(const std::string &endpoint_url,
                      const std::string &component_name,
@@ -54,8 +52,6 @@ private:
   class Impl;
   std::unique_ptr<Impl> impl_;
 
-  bool publishComponent(RTT::TaskContext &component);
-  void unpublishComponent(RTT::TaskContext *component) noexcept;
   bool fail(const char *operation, std::string error) const;
 };
 
