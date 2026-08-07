@@ -4,7 +4,6 @@
 #include <rtt/internal/DataSources.hpp>
 #include <rtt/types/TypeInfo.hpp>
 
-#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <sstream>
@@ -77,7 +76,7 @@ std::string scalarText(const DataSourcePtr &source, bool hexadecimal) {
   return stream.str();
 }
 
-RenderNode captureNode(const DataSourcePtr &source, std::size_t depth,
+RenderNode captureNode(const DataSourcePtr &source,
                        const OCL::detail::StructuredValueRenderOptions &options) {
   RenderNode node;
   if (!source || source->getTypeInfo() == nullptr) {
@@ -85,20 +84,17 @@ RenderNode captureNode(const DataSourcePtr &source, std::size_t depth,
   }
 
   const auto memberFactory = source->getTypeInfo()->getMemberFactory();
-  if (!memberFactory || source->getTypeName() == "String" ||
-      depth > options.max_structural_depth) {
+  if (!memberFactory || source->getTypeName() == "String") {
     node.scalar = scalarText(source, options.hexadecimal);
     return node;
   }
 
   node.kind = RenderNode::Kind::structure;
   const std::vector<std::string> names = source->getMemberNames();
-  const std::size_t count = std::min(names.size(), options.structure_members);
-  node.children.reserve(count);
-  for (std::size_t index = 0; index < count; ++index) {
+  node.children.reserve(names.size());
+  for (std::size_t index = 0; index < names.size(); ++index) {
     node.children.emplace_back(names[index],
-                               captureNode(source->getMember(names[index]), depth + 1,
-                                           options));
+                               captureNode(source->getMember(names[index]), options));
   }
   return node;
 }
@@ -140,7 +136,7 @@ StructuredValueRenderResult renderStructuredValue(
               scalarText(source, options.hexadecimal)};
     }
     return {StructuredValueRenderStatus::rendered,
-            renderCompact(captureNode(local.value, 1, options))};
+            renderCompact(captureNode(local.value, options))};
   } catch (const std::exception &) {
     return {StructuredValueRenderStatus::evaluation_failed, {}};
   } catch (...) {

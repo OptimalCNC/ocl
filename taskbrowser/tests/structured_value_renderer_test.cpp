@@ -3,6 +3,7 @@
 
 #include "taskbrowser/internal/StructuredValueRenderer.hpp"
 
+#include <boost/intrusive_ptr.hpp>
 #include <boost/serialization/nvp.hpp>
 #include <rtt/internal/DataSources.hpp>
 #include <rtt/typekit/RealTimeTypekit.hpp>
@@ -25,6 +26,10 @@ struct Envelope { Point point; std::int32_t quality{0}; };
 struct Opaque { std::int32_t value{0}; };
 struct Empty {};
 struct TextValue { std::string text; };
+struct Level4 { std::int32_t value{0}; };
+struct Level3 { Level4 child; };
+struct Level2 { Level3 child; };
+struct Level1 { Level2 child; };
 
 std::ostream &operator<<(std::ostream &stream, const Point &value) {
   return stream << "Point{" << value.x << ", " << value.y << '}';
@@ -68,6 +73,22 @@ template <class Archive>
 void serialize(Archive &archive, renderer_test::TextValue &value, const unsigned int) {
   archive & make_nvp("text", value.text);
 }
+template <class Archive>
+void serialize(Archive &archive, renderer_test::Level4 &value, const unsigned int) {
+  archive & make_nvp("value", value.value);
+}
+template <class Archive>
+void serialize(Archive &archive, renderer_test::Level3 &value, const unsigned int) {
+  archive & make_nvp("child", value.child);
+}
+template <class Archive>
+void serialize(Archive &archive, renderer_test::Level2 &value, const unsigned int) {
+  archive & make_nvp("child", value.child);
+}
+template <class Archive>
+void serialize(Archive &archive, renderer_test::Level1 &value, const unsigned int) {
+  archive & make_nvp("child", value.child);
+}
 
 } // namespace boost::serialization
 
@@ -84,6 +105,10 @@ void loadRendererTypes() {
     BOOST_REQUIRE(types->addType(new RTT::types::TemplateTypeInfo<renderer_test::Opaque, true>("/test/taskbrowser/Opaque")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Empty, false>("/test/taskbrowser/Empty")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::TextValue, false>("/test/taskbrowser/TextValue")));
+    BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level4, false>("/test/taskbrowser/Level4")));
+    BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level3, false>("/test/taskbrowser/Level3")));
+    BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level2, false>("/test/taskbrowser/Level2")));
+    BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level1, false>("/test/taskbrowser/Level1")));
   }
 }
 
@@ -184,9 +209,18 @@ BOOST_AUTO_TEST_CASE(renders_an_empty_member_aware_structure) {
   BOOST_TEST(OCL::detail::renderStructuredValue(valueSource(renderer_test::Empty{})).text == "{}");
 }
 
+BOOST_AUTO_TEST_CASE(renders_every_nested_member_without_task_two_limits) {
+  loadRendererTypes();
+  const auto result = OCL::detail::renderStructuredValue(
+      valueSource(renderer_test::Level1{{{{9}}}}));
+  BOOST_TEST(result.text == "{child: {child: {child: {value: 9}}}}");
+}
+
 BOOST_AUTO_TEST_CASE(snapshots_a_structured_source_exactly_once) {
   loadRendererTypes();
-  auto source = new CountingDataSource<renderer_test::Envelope>(renderer_test::Envelope{{3.0, 4.0}, 5});
+  boost::intrusive_ptr<CountingDataSource<renderer_test::Envelope>> source(
+      new CountingDataSource<renderer_test::Envelope>(
+          renderer_test::Envelope{{3.0, 4.0}, 5}));
   const auto result = OCL::detail::renderStructuredValue(source);
   BOOST_TEST(result.status == OCL::detail::StructuredValueRenderStatus::rendered);
   BOOST_TEST(source->evaluationCount() == 1U);
@@ -195,7 +229,9 @@ BOOST_AUTO_TEST_CASE(snapshots_a_structured_source_exactly_once) {
 
 BOOST_AUTO_TEST_CASE(never_traverses_or_mutates_the_source) {
   loadRendererTypes();
-  auto source = new MutationProbeDataSource<renderer_test::Envelope>(renderer_test::Envelope{{3.0, 4.0}, 5});
+  boost::intrusive_ptr<MutationProbeDataSource<renderer_test::Envelope>> source(
+      new MutationProbeDataSource<renderer_test::Envelope>(
+          renderer_test::Envelope{{3.0, 4.0}, 5}));
   const auto result = OCL::detail::renderStructuredValue(source);
   BOOST_TEST(result.text == "{point: {x: 3.0, y: 4.0}, quality: 5}");
   BOOST_TEST(source->evaluationCount() == 1U);
