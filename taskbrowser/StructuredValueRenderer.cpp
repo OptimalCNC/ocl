@@ -239,6 +239,18 @@ std::string renderBounded(const RenderNode &node, bool multiline, std::size_t de
       ? "\n" + indent(depth, options.indentation) + (sequence ? "]" : "}")
       : (sequence ? "]" : "}");
   std::string output = multiline ? (sequence ? "[\n" : "{\n") : (sequence ? "[" : "{");
+  if (multiline && (!node.children.empty() || node.omitted != 0U) &&
+      renderMultiline(node, depth, options.indentation).size() > budget) {
+    const std::string multiline_marker =
+        output + indent(depth + 1U, options.indentation) +
+        "... output omitted" + closing;
+    const std::string compact_marker = sequence
+        ? "[... output omitted]"
+        : "{... output omitted}";
+    if (multiline_marker.size() > budget && compact_marker.size() <= budget) {
+      return compact_marker;
+    }
+  }
   bool first = true;
 
   for (std::size_t child_index = 0; child_index < node.children.size(); ++child_index) {

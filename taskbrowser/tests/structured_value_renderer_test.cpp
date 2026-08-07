@@ -370,6 +370,17 @@ BOOST_AUTO_TEST_CASE(truncates_structural_output_without_breaking_delimiters) {
   BOOST_TEST(balancedDelimiters(bounded.text));
 }
 
+BOOST_AUTO_TEST_CASE(uses_a_compact_explicit_omission_when_multiline_cannot_fit) {
+  loadRendererTypes();
+  OCL::detail::StructuredValueRenderOptions small_budget;
+  small_budget.max_result_bytes = 24;
+  const auto bounded = OCL::detail::renderStructuredValue(
+      valueSource(renderer_test::WideValue{}), small_budget);
+  BOOST_TEST(bounded.text == "{... output omitted}");
+  BOOST_TEST(bounded.text.size() + 3U <= 24U);
+  BOOST_TEST(balancedDelimiters(bounded.text));
+}
+
 BOOST_AUTO_TEST_CASE(snapshots_a_structured_source_exactly_once) {
   loadRendererTypes();
   boost::intrusive_ptr<CountingDataSource<renderer_test::Envelope>> source(
