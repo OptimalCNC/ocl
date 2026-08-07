@@ -85,6 +85,13 @@ RenderNode unavailableNode() {
   return node;
 }
 
+bool hasIndexedMemberSemantics(const DataSourcePtr &source) {
+  // RTT's numeric-name lookup is the safe capability probe. Sequence member
+  // factories return a lazy indexed data source even when the sequence is
+  // empty; ordinary structure factories return null for an absent "0" field.
+  return static_cast<bool>(source->getMember("0"));
+}
+
 RenderNode captureNode(const DataSourcePtr &source, std::size_t structural_depth,
                        const OCL::detail::StructuredValueRenderOptions &options) {
   if (!source || source->getTypeInfo() == nullptr) {
@@ -103,7 +110,7 @@ RenderNode captureNode(const DataSourcePtr &source, std::size_t structural_depth
     const bool has_size = std::find(names.begin(), names.end(), "size") != names.end();
     const bool has_capacity =
         std::find(names.begin(), names.end(), "capacity") != names.end();
-    if (has_size && has_capacity) {
+    if (has_size && has_capacity && hasIndexedMemberSemantics(source)) {
       const DataSourcePtr size_member = source->getMember("size");
       auto size_source =
           boost::dynamic_pointer_cast<RTT::internal::DataSource<int>>(size_member);
@@ -217,6 +224,9 @@ std::string renderMultiline(const RenderNode &node, std::size_t depth,
 
 std::string truncateScalar(const std::string &text, std::size_t budget) {
   if (text.size() <= budget) return text;
+  const std::string complete_marker =
+      "... " + std::to_string(text.size()) + " bytes omitted";
+  if (complete_marker.size() > budget) return "... output omitted";
   std::size_t prefix = budget;
   for (;;) {
     const std::size_t omitted = text.size() - std::min(prefix, text.size());
@@ -336,6 +346,10 @@ namespace OCL::detail {
 
 StructuredValueRenderResult renderStructuredValue(
     DataSourcePtr source, const StructuredValueRenderOptions &options) {
+  if (options.max_result_bytes <
+      StructuredValueRenderOptions::minimum_max_result_bytes) {
+    return {StructuredValueRenderStatus::evaluation_failed, {}};
+  }
   try {
     const SnapshotResult local = snapshot(source);
     if (local.status == SnapshotStatus::evaluation_failed) {

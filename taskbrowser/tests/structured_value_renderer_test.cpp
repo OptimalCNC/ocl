@@ -34,6 +34,10 @@ struct Envelope { Point point; std::int32_t quality{0}; };
 struct Opaque { std::int32_t value{0}; };
 struct Empty {};
 struct TextValue { std::string text; };
+struct SizeCapacityValue {
+  std::int32_t size{7};
+  std::int32_t capacity{11};
+};
 struct Level4 { std::int32_t value{4}; };
 struct Level3 { Level4 level4; };
 struct Level2 { Level3 level3; };
@@ -85,6 +89,12 @@ void serialize(Archive &, renderer_test::Empty &, const unsigned int) {}
 template <class Archive>
 void serialize(Archive &archive, renderer_test::TextValue &value, const unsigned int) {
   archive & make_nvp("text", value.text);
+}
+template <class Archive>
+void serialize(Archive &archive, renderer_test::SizeCapacityValue &value,
+               const unsigned int) {
+  archive & make_nvp("size", value.size);
+  archive & make_nvp("capacity", value.capacity);
 }
 template <class Archive>
 void serialize(Archive &archive, renderer_test::Level4 &value, const unsigned int) {
@@ -143,6 +153,7 @@ void loadRendererTypes() {
     BOOST_REQUIRE(types->addType(new RTT::types::TemplateTypeInfo<renderer_test::Opaque, true>("/test/taskbrowser/Opaque")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Empty, false>("/test/taskbrowser/Empty")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::TextValue, false>("/test/taskbrowser/TextValue")));
+    BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::SizeCapacityValue, false>("/test/taskbrowser/SizeCapacityValue")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level4, false>("/test/taskbrowser/Level4")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level3, false>("/test/taskbrowser/Level3")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level2, false>("/test/taskbrowser/Level2")));
@@ -314,6 +325,14 @@ BOOST_AUTO_TEST_CASE(renders_an_empty_member_aware_structure) {
   BOOST_TEST(OCL::detail::renderStructuredValue(valueSource(renderer_test::Empty{})).text == "{}");
 }
 
+BOOST_AUTO_TEST_CASE(size_and_capacity_fields_remain_named_structure_members) {
+  loadRendererTypes();
+  const auto result = OCL::detail::renderStructuredValue(
+      valueSource(renderer_test::SizeCapacityValue{}));
+  BOOST_TEST(result.status == OCL::detail::StructuredValueRenderStatus::rendered);
+  BOOST_TEST(result.text == "{size: 7, capacity: 11}");
+}
+
 class MissingQualityDataSource final
     : public RTT::internal::ValueDataSource<renderer_test::Envelope> {
 public:
@@ -450,6 +469,56 @@ BOOST_AUTO_TEST_CASE(uses_a_compact_explicit_omission_when_multiline_cannot_fit)
   BOOST_TEST(bounded.text == "{... output omitted}");
   BOOST_TEST(bounded.text.size() + 3U <= 24U);
   BOOST_TEST(balancedDelimiters(bounded.text));
+}
+
+BOOST_AUTO_TEST_CASE(rejects_zero_byte_budget_without_evaluating_the_source) {
+  loadRendererTypes();
+  boost::intrusive_ptr<CountingDataSource<renderer_test::Envelope>> source(
+      new CountingDataSource<renderer_test::Envelope>(renderer_test::Envelope{}));
+  OCL::detail::StructuredValueRenderOptions options;
+  options.max_result_bytes = 0U;
+
+  const auto result = OCL::detail::renderStructuredValue(source, options);
+
+  BOOST_TEST(result.status ==
+             OCL::detail::StructuredValueRenderStatus::evaluation_failed);
+  BOOST_TEST(result.text.empty());
+  BOOST_TEST(result.text.size() <= options.max_result_bytes);
+  BOOST_TEST(source->evaluationCount() == 0U);
+}
+
+BOOST_AUTO_TEST_CASE(rejects_budget_below_minimum_without_evaluating_the_source) {
+  loadRendererTypes();
+  boost::intrusive_ptr<CountingDataSource<renderer_test::Envelope>> source(
+      new CountingDataSource<renderer_test::Envelope>(renderer_test::Envelope{}));
+  OCL::detail::StructuredValueRenderOptions options;
+  options.max_result_bytes =
+      OCL::detail::StructuredValueRenderOptions::minimum_max_result_bytes - 1U;
+
+  const auto result = OCL::detail::renderStructuredValue(source, options);
+
+  BOOST_TEST(result.status ==
+             OCL::detail::StructuredValueRenderStatus::evaluation_failed);
+  BOOST_TEST(result.text.empty());
+  BOOST_TEST(result.text.size() + 3U <= options.max_result_bytes);
+  BOOST_TEST(source->evaluationCount() == 0U);
+}
+
+BOOST_AUTO_TEST_CASE(minimum_byte_budget_is_explicit_and_bounded) {
+  loadRendererTypes();
+  boost::intrusive_ptr<CountingDataSource<renderer_test::WideValue>> source(
+      new CountingDataSource<renderer_test::WideValue>(renderer_test::WideValue{}));
+  OCL::detail::StructuredValueRenderOptions options;
+  options.max_result_bytes =
+      OCL::detail::StructuredValueRenderOptions::minimum_max_result_bytes;
+
+  const auto result = OCL::detail::renderStructuredValue(source, options);
+
+  BOOST_TEST(result.status == OCL::detail::StructuredValueRenderStatus::rendered);
+  BOOST_TEST(result.text == "{... output omitted}");
+  BOOST_TEST(result.text.size() + 3U <= options.max_result_bytes);
+  BOOST_TEST(balancedDelimiters(result.text));
+  BOOST_TEST(source->evaluationCount() == 1U);
 }
 
 BOOST_AUTO_TEST_CASE(snapshots_a_structured_source_exactly_once) {

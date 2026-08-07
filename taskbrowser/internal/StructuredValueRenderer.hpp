@@ -8,6 +8,10 @@
 namespace OCL::detail {
 
 struct StructuredValueRenderOptions {
+  // Portable lower bound for the " = " prefix and the shortest explicit
+  // omission marker with its closing delimiter: "{... output omitted}".
+  static constexpr std::size_t minimum_max_result_bytes = 23U;
+
   std::size_t compact_width{100};
   std::size_t sequence_items{3};
   std::size_t max_structural_depth{3};
