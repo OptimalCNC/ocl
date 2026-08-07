@@ -7,6 +7,7 @@
 #include <boost/serialization/nvp.hpp>
 #include <rtt/internal/DataSources.hpp>
 #include <rtt/typekit/RealTimeTypekit.hpp>
+#include <rtt/types/SequenceTypeInfo.hpp>
 #include <rtt/types/StructTypeInfo.hpp>
 #include <rtt/types/TemplateTypeInfo.hpp>
 #include <rtt/types/Types.hpp>
@@ -16,8 +17,10 @@
 #include <istream>
 #include <map>
 #include <ostream>
+#include <regex>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace renderer_test {
 
@@ -26,10 +29,15 @@ struct Envelope { Point point; std::int32_t quality{0}; };
 struct Opaque { std::int32_t value{0}; };
 struct Empty {};
 struct TextValue { std::string text; };
-struct Level4 { std::int32_t value{0}; };
-struct Level3 { Level4 child; };
-struct Level2 { Level3 child; };
-struct Level1 { Level2 child; };
+struct Level4 { std::int32_t value{4}; };
+struct Level3 { Level4 level4; };
+struct Level2 { Level3 level3; };
+struct Level1 { Level2 level2; };
+struct WideValue {
+  std::int32_t m00{0}, m01{1}, m02{2}, m03{3}, m04{4}, m05{5}, m06{6};
+  std::int32_t m07{7}, m08{8}, m09{9}, m10{10}, m11{11}, m12{12}, m13{13};
+  std::int32_t m14{14}, m15{15}, m16{16}, m17{17}, m18{18}, m19{19}, m20{20};
+};
 
 std::ostream &operator<<(std::ostream &stream, const Point &value) {
   return stream << "Point{" << value.x << ", " << value.y << '}';
@@ -79,15 +87,39 @@ void serialize(Archive &archive, renderer_test::Level4 &value, const unsigned in
 }
 template <class Archive>
 void serialize(Archive &archive, renderer_test::Level3 &value, const unsigned int) {
-  archive & make_nvp("child", value.child);
+  archive & make_nvp("level4", value.level4);
 }
 template <class Archive>
 void serialize(Archive &archive, renderer_test::Level2 &value, const unsigned int) {
-  archive & make_nvp("child", value.child);
+  archive & make_nvp("level3", value.level3);
 }
 template <class Archive>
 void serialize(Archive &archive, renderer_test::Level1 &value, const unsigned int) {
-  archive & make_nvp("child", value.child);
+  archive & make_nvp("level2", value.level2);
+}
+template <class Archive>
+void serialize(Archive &archive, renderer_test::WideValue &value, const unsigned int) {
+  archive & make_nvp("m00", value.m00);
+  archive & make_nvp("m01", value.m01);
+  archive & make_nvp("m02", value.m02);
+  archive & make_nvp("m03", value.m03);
+  archive & make_nvp("m04", value.m04);
+  archive & make_nvp("m05", value.m05);
+  archive & make_nvp("m06", value.m06);
+  archive & make_nvp("m07", value.m07);
+  archive & make_nvp("m08", value.m08);
+  archive & make_nvp("m09", value.m09);
+  archive & make_nvp("m10", value.m10);
+  archive & make_nvp("m11", value.m11);
+  archive & make_nvp("m12", value.m12);
+  archive & make_nvp("m13", value.m13);
+  archive & make_nvp("m14", value.m14);
+  archive & make_nvp("m15", value.m15);
+  archive & make_nvp("m16", value.m16);
+  archive & make_nvp("m17", value.m17);
+  archive & make_nvp("m18", value.m18);
+  archive & make_nvp("m19", value.m19);
+  archive & make_nvp("m20", value.m20);
 }
 
 } // namespace boost::serialization
@@ -101,6 +133,7 @@ void loadRendererTypes() {
   }
   if (types->type("/test/taskbrowser/Point") == nullptr) {
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Point, true>("/test/taskbrowser/Point")));
+    BOOST_REQUIRE(types->addType(new RTT::types::SequenceTypeInfo<std::vector<renderer_test::Point>>("/test/taskbrowser/PointArray")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Envelope, true>("/test/taskbrowser/Envelope")));
     BOOST_REQUIRE(types->addType(new RTT::types::TemplateTypeInfo<renderer_test::Opaque, true>("/test/taskbrowser/Opaque")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Empty, false>("/test/taskbrowser/Empty")));
@@ -109,6 +142,7 @@ void loadRendererTypes() {
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level3, false>("/test/taskbrowser/Level3")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level2, false>("/test/taskbrowser/Level2")));
     BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::Level1, false>("/test/taskbrowser/Level1")));
+    BOOST_REQUIRE(types->addType(new RTT::types::StructTypeInfo<renderer_test::WideValue, false>("/test/taskbrowser/WideValue")));
   }
 }
 
@@ -209,11 +243,131 @@ BOOST_AUTO_TEST_CASE(renders_an_empty_member_aware_structure) {
   BOOST_TEST(OCL::detail::renderStructuredValue(valueSource(renderer_test::Empty{})).text == "{}");
 }
 
-BOOST_AUTO_TEST_CASE(renders_every_nested_member_without_task_two_limits) {
+class MissingQualityDataSource final
+    : public RTT::internal::ValueDataSource<renderer_test::Envelope> {
+public:
+  using RTT::internal::ValueDataSource<renderer_test::Envelope>::ValueDataSource;
+
+  RTT::base::DataSourceBase::shared_ptr
+  getMember(const std::string &name) override {
+    if (name == "quality") {
+      return {};
+    }
+    return RTT::internal::ValueDataSource<renderer_test::Envelope>::getMember(name);
+  }
+};
+
+bool balancedDelimiters(const std::string &text) {
+  std::vector<char> open;
+  for (const char character : text) {
+    if (character == '{' || character == '[') {
+      open.push_back(character);
+    } else if (character == '}' || character == ']') {
+      if (open.empty()) return false;
+      const char expected = character == '}' ? '{' : '[';
+      if (open.back() != expected) return false;
+      open.pop_back();
+    }
+  }
+  return open.empty();
+}
+
+BOOST_AUTO_TEST_CASE(previews_zero_one_three_and_four_sequence_items) {
+  loadRendererTypes();
+  using PointArray = std::vector<renderer_test::Point>;
+
+  BOOST_TEST(OCL::detail::renderStructuredValue(valueSource(PointArray{})).text == "[]");
+  BOOST_TEST(OCL::detail::renderStructuredValue(valueSource(PointArray{{1.0, 2.0}})).text ==
+             "[[0]: {x: 1.0, y: 2.0}]");
+  BOOST_TEST(OCL::detail::renderStructuredValue(valueSource(
+                 PointArray{{1.0, 2.0}, {3.0, 4.0}, {5.0, 6.0}})).text ==
+             "[[0]: {x: 1.0, y: 2.0}, [1]: {x: 3.0, y: 4.0}, "
+             "[2]: {x: 5.0, y: 6.0}]");
+
+  const auto four = OCL::detail::renderStructuredValue(valueSource(PointArray{
+      {1.0, 2.0}, {3.0, 4.0}, {5.0, 6.0}, {7.0, 8.0}}));
+  BOOST_TEST(four.text.find("[3]") == std::string::npos);
+  BOOST_TEST(four.text.find("... 1 items omitted") != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(previews_a_thousand_sequence_items_with_a_bounded_compact_form) {
+  loadRendererTypes();
+  using PointArray = std::vector<renderer_test::Point>;
+  PointArray values(1000, renderer_test::Point{1.0, 2.0});
+  BOOST_TEST(OCL::detail::renderStructuredValue(valueSource(values)).text ==
+             "[[0]: {x: 1.0, y: 2.0}, [1]: {x: 1.0, y: 2.0}, "
+             "[2]: {x: 1.0, y: 2.0}, ... 997 items omitted]");
+}
+
+BOOST_AUTO_TEST_CASE(collapses_structural_depth_four) {
   loadRendererTypes();
   const auto result = OCL::detail::renderStructuredValue(
-      valueSource(renderer_test::Level1{{{{9}}}}));
-  BOOST_TEST(result.text == "{child: {child: {child: {value: 9}}}}");
+      valueSource(renderer_test::Level1{}));
+  BOOST_TEST(result.text == "{level2: {level3: {level4: {...}}}}");
+}
+
+BOOST_AUTO_TEST_CASE(limits_a_structure_to_twenty_members) {
+  loadRendererTypes();
+  const auto result = OCL::detail::renderStructuredValue(
+      valueSource(renderer_test::WideValue{}));
+  BOOST_TEST(result.text.find("m19: 19") != std::string::npos);
+  BOOST_TEST(result.text.find("m20: 20") == std::string::npos);
+  BOOST_TEST(result.text.find("... 1 members omitted") != std::string::npos);
+  BOOST_TEST(result.text.find('\n') != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(switches_to_multiline_above_one_hundred_characters) {
+  loadRendererTypes();
+  const auto at_limit = OCL::detail::renderStructuredValue(
+      valueSource(renderer_test::TextValue{std::string(89, 'a')}));
+  const auto above_limit = OCL::detail::renderStructuredValue(
+      valueSource(renderer_test::TextValue{std::string(90, 'a')}));
+
+  BOOST_TEST(at_limit.text.find('\n') == std::string::npos);
+  BOOST_TEST(at_limit.text.size() + 3U == 100U);
+  BOOST_TEST(above_limit.text ==
+             "{\n  text: " + std::string(90, 'a') + "\n}");
+}
+
+BOOST_AUTO_TEST_CASE(continues_after_an_unavailable_member) {
+  loadRendererTypes();
+  auto snapshot = new MissingQualityDataSource(
+      renderer_test::Envelope{{3.0, 4.0}, 5});
+  BOOST_TEST(OCL::detail::renderStructuredSnapshotForTest(snapshot) ==
+             "{point: {x: 3.0, y: 4.0}, quality: <unavailable>}");
+}
+
+BOOST_AUTO_TEST_CASE(enforces_a_delimiter_safe_byte_budget) {
+  loadRendererTypes();
+  const auto result = OCL::detail::renderStructuredValue(
+      valueSource(renderer_test::TextValue{std::string(6000, 'x')}));
+  BOOST_TEST(result.text.size() + 3U <= 4096U);
+  BOOST_TEST(result.text.find("bytes omitted") != std::string::npos);
+  BOOST_TEST(result.text.front() == '{');
+  BOOST_TEST(result.text.back() == '}');
+  BOOST_TEST(balancedDelimiters(result.text));
+
+  const std::regex omitted_pattern(R"(\.\.\. ([0-9]+) bytes omitted)");
+  std::smatch omitted_match;
+  BOOST_REQUIRE(std::regex_search(result.text, omitted_match, omitted_pattern));
+  const std::size_t value_begin = result.text.find("text: ") + 6U;
+  const std::size_t marker_begin =
+      static_cast<std::size_t>(omitted_match.position(0));
+  const std::size_t retained = marker_begin - value_begin;
+  const std::size_t omitted =
+      static_cast<std::size_t>(std::stoull(omitted_match.str(1)));
+  BOOST_TEST(retained + omitted == 6000U);
+}
+
+BOOST_AUTO_TEST_CASE(truncates_structural_output_without_breaking_delimiters) {
+  loadRendererTypes();
+  OCL::detail::StructuredValueRenderOptions small_budget;
+  small_budget.max_result_bytes = 80;
+  const auto bounded = OCL::detail::renderStructuredValue(
+      valueSource(renderer_test::WideValue{}), small_budget);
+  BOOST_TEST(bounded.text.size() + 3U <= 80U);
+  BOOST_TEST(bounded.text.find("... output omitted") != std::string::npos);
+  BOOST_TEST(balancedDelimiters(bounded.text));
 }
 
 BOOST_AUTO_TEST_CASE(snapshots_a_structured_source_exactly_once) {

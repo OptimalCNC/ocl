@@ -4,6 +4,7 @@
 #include <rtt/internal/DataSources.hpp>
 #include <rtt/types/TypeInfo.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <sstream>
@@ -15,10 +16,12 @@ namespace {
 using DataSourcePtr = RTT::base::DataSourceBase::shared_ptr;
 
 struct RenderNode {
-  enum class Kind { scalar, structure };
+  enum class Kind { scalar, structure, sequence, unavailable };
   Kind kind{Kind::scalar};
   std::string scalar;
   std::vector<std::pair<std::string, RenderNode>> children;
+  std::size_t omitted{0};
+  bool collapsed{false};
 };
 
 enum class SnapshotStatus { ready, unavailable, evaluation_failed };
@@ -76,45 +79,243 @@ std::string scalarText(const DataSourcePtr &source, bool hexadecimal) {
   return stream.str();
 }
 
-RenderNode captureNode(const DataSourcePtr &source,
-                       const OCL::detail::StructuredValueRenderOptions &options) {
+RenderNode unavailableNode() {
   RenderNode node;
-  if (!source || source->getTypeInfo() == nullptr) {
-    return node;
-  }
-
-  const auto memberFactory = source->getTypeInfo()->getMemberFactory();
-  if (!memberFactory || source->getTypeName() == "String") {
-    node.scalar = scalarText(source, options.hexadecimal);
-    return node;
-  }
-
-  node.kind = RenderNode::Kind::structure;
-  const std::vector<std::string> names = source->getMemberNames();
-  node.children.reserve(names.size());
-  for (std::size_t index = 0; index < names.size(); ++index) {
-    node.children.emplace_back(names[index],
-                               captureNode(source->getMember(names[index]), options));
-  }
+  node.kind = RenderNode::Kind::unavailable;
   return node;
 }
 
-std::string renderCompact(const RenderNode &node) {
-  if (node.kind == RenderNode::Kind::scalar) {
-    return node.scalar;
+RenderNode captureNode(const DataSourcePtr &source, std::size_t structural_depth,
+                       const OCL::detail::StructuredValueRenderOptions &options) {
+  if (!source || source->getTypeInfo() == nullptr) {
+    return unavailableNode();
   }
 
-  std::string output{"{"};
-  for (std::size_t index = 0; index < node.children.size(); ++index) {
-    if (index != 0U) {
-      output += ", ";
+  try {
+    const auto memberFactory = source->getTypeInfo()->getMemberFactory();
+    if (!memberFactory || source->getTypeName() == "String") {
+      RenderNode node;
+      node.scalar = scalarText(source, options.hexadecimal);
+      return node;
     }
-    output += node.children[index].first;
-    output += ": ";
+
+    const std::vector<std::string> names = source->getMemberNames();
+    const bool has_size = std::find(names.begin(), names.end(), "size") != names.end();
+    const bool has_capacity =
+        std::find(names.begin(), names.end(), "capacity") != names.end();
+    if (has_size && has_capacity) {
+      const DataSourcePtr size_member = source->getMember("size");
+      auto size_source =
+          boost::dynamic_pointer_cast<RTT::internal::DataSource<int>>(size_member);
+      if (size_source) {
+        RenderNode node;
+        node.kind = RenderNode::Kind::sequence;
+        if (structural_depth > options.max_structural_depth) {
+          node.collapsed = true;
+          return node;
+        }
+
+        const int reported_size = size_source->get();
+        const std::size_t size = reported_size > 0 ? static_cast<std::size_t>(reported_size) : 0U;
+        const std::size_t captured = std::min(size, options.sequence_items);
+        node.children.reserve(captured);
+        for (std::size_t index_value = 0; index_value < captured; ++index_value) {
+          try {
+            auto index = new RTT::internal::ConstantDataSource<int>(
+                static_cast<int>(index_value));
+            DataSourcePtr element = source->getMember(
+                index, RTT::base::DataSourceBase::shared_ptr{});
+            node.children.emplace_back(std::to_string(index_value),
+                                       captureNode(element, structural_depth + 1U, options));
+          } catch (...) {
+            node.children.emplace_back(std::to_string(index_value), unavailableNode());
+          }
+        }
+        node.omitted = size - captured;
+        return node;
+      }
+    }
+
+    RenderNode node;
+    node.kind = RenderNode::Kind::structure;
+    if (structural_depth > options.max_structural_depth) {
+      node.collapsed = true;
+      return node;
+    }
+
+    const std::size_t captured = std::min(names.size(), options.structure_members);
+    node.children.reserve(captured);
+    for (std::size_t index = 0; index < captured; ++index) {
+      try {
+        node.children.emplace_back(names[index], captureNode(source->getMember(names[index]),
+                                                             structural_depth + 1U, options));
+      } catch (...) {
+        node.children.emplace_back(names[index], unavailableNode());
+      }
+    }
+    node.omitted = names.size() - captured;
+    return node;
+  } catch (...) {
+    return unavailableNode();
+  }
+}
+
+std::string omissionText(const RenderNode &node) {
+  return "... " + std::to_string(node.omitted) +
+         (node.kind == RenderNode::Kind::sequence ? " items omitted" : " members omitted");
+}
+
+std::string renderCompact(const RenderNode &node) {
+  if (node.kind == RenderNode::Kind::scalar) return node.scalar;
+  if (node.kind == RenderNode::Kind::unavailable) return "<unavailable>";
+  if (node.collapsed) return node.kind == RenderNode::Kind::sequence ? "[...]" : "{...}";
+
+  const bool sequence = node.kind == RenderNode::Kind::sequence;
+  std::string output(sequence ? "[" : "{");
+  for (std::size_t index = 0; index < node.children.size(); ++index) {
+    if (index != 0U) output += ", ";
+    if (sequence) output += "[" + node.children[index].first + "]: ";
+    else output += node.children[index].first + ": ";
     output += renderCompact(node.children[index].second);
   }
-  output += "}";
+  if (node.omitted != 0U) {
+    if (!node.children.empty()) output += ", ";
+    output += omissionText(node);
+  }
+  output += sequence ? "]" : "}";
   return output;
+}
+
+std::string indent(std::size_t depth, std::size_t indentation) {
+  return std::string(depth * indentation, ' ');
+}
+
+std::string renderMultiline(const RenderNode &node, std::size_t depth,
+                            std::size_t indentation) {
+  if (node.kind == RenderNode::Kind::scalar) return node.scalar;
+  if (node.kind == RenderNode::Kind::unavailable) return "<unavailable>";
+  if (node.collapsed) return node.kind == RenderNode::Kind::sequence ? "[...]" : "{...}";
+
+  const bool sequence = node.kind == RenderNode::Kind::sequence;
+  std::string output(sequence ? "[\n" : "{\n");
+  bool first = true;
+  for (std::size_t child_index = 0; child_index < node.children.size(); ++child_index) {
+    const auto &child = node.children[child_index];
+    if (!first) output += "\n";
+    output += indent(depth + 1U, indentation);
+    output += sequence ? "[" + child.first + "]: " : child.first + ": ";
+    output += renderMultiline(child.second, depth + 1U, indentation);
+    first = false;
+  }
+  if (node.omitted != 0U) {
+    if (!first) output += "\n";
+    output += indent(depth + 1U, indentation) + omissionText(node);
+  }
+  output += "\n" + indent(depth, indentation) + (sequence ? "]" : "}");
+  return output;
+}
+
+std::string truncateScalar(const std::string &text, std::size_t budget) {
+  if (text.size() <= budget) return text;
+  std::size_t prefix = budget;
+  for (;;) {
+    const std::size_t omitted = text.size() - std::min(prefix, text.size());
+    const std::string marker = "... " + std::to_string(omitted) + " bytes omitted";
+    const std::size_t next = budget > marker.size() ? budget - marker.size() : 0U;
+    if (next == prefix) return text.substr(0, prefix) + marker;
+    prefix = next;
+  }
+}
+
+std::string renderBounded(const RenderNode &node, bool multiline, std::size_t depth,
+                          const OCL::detail::StructuredValueRenderOptions &options,
+                          std::size_t budget) {
+  if (node.kind == RenderNode::Kind::scalar) return truncateScalar(node.scalar, budget);
+  if (node.kind == RenderNode::Kind::unavailable) return "<unavailable>";
+  if (node.collapsed) return node.kind == RenderNode::Kind::sequence ? "[...]" : "{...}";
+
+  const bool sequence = node.kind == RenderNode::Kind::sequence;
+  const std::string closing = multiline
+      ? "\n" + indent(depth, options.indentation) + (sequence ? "]" : "}")
+      : (sequence ? "]" : "}");
+  std::string output = multiline ? (sequence ? "[\n" : "{\n") : (sequence ? "[" : "{");
+  bool first = true;
+
+  for (std::size_t child_index = 0; child_index < node.children.size(); ++child_index) {
+    const auto &child = node.children[child_index];
+    const std::string separator = first ? "" : (multiline ? "\n" : ", ");
+    const std::string prefix = multiline
+        ? indent(depth + 1U, options.indentation) +
+              (sequence ? "[" + child.first + "]: " : child.first + ": ")
+        : (sequence ? "[" + child.first + "]: " : child.first + ": ");
+    const std::string complete = multiline
+        ? renderMultiline(child.second, depth + 1U, options.indentation)
+        : renderCompact(child.second);
+    const bool needs_future_omission =
+        child_index + 1U < node.children.size() || node.omitted != 0U;
+    const std::string future_separator = multiline ? "\n" : ", ";
+    const std::string future_prefix = multiline ? indent(depth + 1U, options.indentation) : "";
+    const std::size_t future_reserve = needs_future_omission
+        ? future_separator.size() + future_prefix.size() +
+              std::string("... output omitted").size()
+        : 0U;
+    if (output.size() + separator.size() + prefix.size() + complete.size() +
+            future_reserve + closing.size() <= budget) {
+      output += separator + prefix + complete;
+      first = false;
+      continue;
+    }
+    if (child.second.kind == RenderNode::Kind::scalar) {
+      const std::size_t used = output.size() + separator.size() + prefix.size() + closing.size();
+      const std::size_t available = budget > used + future_reserve
+          ? budget - used - future_reserve
+          : 0U;
+      if (used + child.second.scalar.size() <= budget) {
+        const std::string marker = "... output omitted";
+        const std::string omission_prefix = multiline ? indent(depth + 1U, options.indentation) : "";
+        if (output.size() + separator.size() + omission_prefix.size() + marker.size() + closing.size() <= budget) {
+          output += separator + omission_prefix + marker;
+        }
+        return output + closing;
+      }
+      const std::string abbreviated = truncateScalar(child.second.scalar, available);
+      if (used + abbreviated.size() <= budget) {
+        output += separator + prefix + abbreviated;
+        first = false;
+        continue;
+      }
+    }
+    const std::string marker = "... output omitted";
+    const std::string omission_prefix = multiline ? indent(depth + 1U, options.indentation) : "";
+    if (output.size() + separator.size() + omission_prefix.size() + marker.size() + closing.size() <= budget) {
+      output += separator + omission_prefix + marker;
+    }
+    return output + closing;
+  }
+
+  if (node.omitted != 0U) {
+    const std::string separator = first ? "" : (multiline ? "\n" : ", ");
+    const std::string marker = omissionText(node);
+    const std::string marker_prefix = multiline ? indent(depth + 1U, options.indentation) : "";
+    if (output.size() + separator.size() + marker_prefix.size() + marker.size() + closing.size() <= budget) {
+      output += separator + marker_prefix + marker;
+    } else {
+      const std::string output_marker = "... output omitted";
+      if (output.size() + separator.size() + marker_prefix.size() + output_marker.size() + closing.size() <= budget) {
+        output += separator + marker_prefix + output_marker;
+      }
+    }
+  }
+  return output + closing;
+}
+
+std::string renderSnapshot(const DataSourcePtr &snapshot,
+                           const OCL::detail::StructuredValueRenderOptions &options) {
+  const RenderNode node = captureNode(snapshot, 1U, options);
+  const std::string compact = renderCompact(node);
+  const bool multiline = compact.size() + 3U > options.compact_width;
+  const std::size_t budget = options.max_result_bytes > 3U ? options.max_result_bytes - 3U : 0U;
+  return renderBounded(node, multiline, 0U, options, budget);
 }
 
 } // namespace
@@ -133,15 +334,20 @@ StructuredValueRenderResult renderStructuredValue(
         return {StructuredValueRenderStatus::evaluation_failed, {}};
       }
       return {StructuredValueRenderStatus::rendered,
-              scalarText(source, options.hexadecimal)};
+              truncateScalar(scalarText(source, options.hexadecimal),
+                             options.max_result_bytes > 3U ? options.max_result_bytes - 3U : 0U)};
     }
-    return {StructuredValueRenderStatus::rendered,
-            renderCompact(captureNode(local.value, options))};
+    return {StructuredValueRenderStatus::rendered, renderSnapshot(local.value, options)};
   } catch (const std::exception &) {
     return {StructuredValueRenderStatus::evaluation_failed, {}};
   } catch (...) {
     return {StructuredValueRenderStatus::evaluation_failed, {}};
   }
+}
+
+std::string renderStructuredSnapshotForTest(
+    DataSourcePtr snapshot, const StructuredValueRenderOptions &options) {
+  return renderSnapshot(snapshot, options);
 }
 
 } // namespace OCL::detail

@@ -31,4 +31,8 @@ StructuredValueRenderResult renderStructuredValue(
     RTT::base::DataSourceBase::shared_ptr source,
     const StructuredValueRenderOptions &options = {});
 
+std::string renderStructuredSnapshotForTest(
+    RTT::base::DataSourceBase::shared_ptr snapshot,
+    const StructuredValueRenderOptions &options = {});
+
 } // namespace OCL::detail
