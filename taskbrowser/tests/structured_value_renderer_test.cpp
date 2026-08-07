@@ -362,6 +362,10 @@ public:
     return RTT::internal::ValueDataSource<renderer_test::Envelope>::getMember(name);
   }
 
+  std::vector<std::string> getMemberNames() const override {
+    return {"quality", "point"};
+  }
+
   std::size_t qualityEvaluationCount() const {
     return quality_->evaluationCount();
   }
@@ -483,7 +487,7 @@ BOOST_AUTO_TEST_CASE(continues_after_a_scalar_member_fails_evaluation) {
       renderer_test::Envelope{{3.0, 4.0}, 5});
   RTT::base::DataSourceBase::shared_ptr snapshot(probe);
   BOOST_TEST(OCL::detail::renderStructuredSnapshotForTest(snapshot) ==
-             "{point: {x: 3.0, y: 4.0}, quality: <unavailable>}");
+             "{quality: <unavailable>, point: {x: 3.0, y: 4.0}}");
   BOOST_TEST(probe->qualityEvaluationCount() == 1U);
 }
 
