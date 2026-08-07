@@ -60,6 +60,7 @@
 #include <rtt/types/TypeStream.hpp>
 #include <rtt/types/Types.hpp>
 #include "TaskBrowser.hpp"
+#include "internal/StructuredValueRenderer.hpp"
 
 #include <rtt/scripting/TryCommand.hpp>
 #include <rtt/TaskContext.hpp>
@@ -1762,9 +1763,7 @@ namespace OCL
     }
 
     void TaskBrowser::printResult( base::DataSourceBase* ds, bool recurse) {
-        std::string prompt(" = ");
-        // setup prompt :
-        sresult <<prompt<< setw(20)<<left;
+        sresult << " = ";
         if ( ds )
             doPrint( ds, recurse );
         else
@@ -1778,15 +1777,11 @@ namespace OCL
             return;
         }
 
-        // this is needed for ds's that rely on initialision.
-        // e.g. eval true once or time measurements.
-        // becomes only really handy for 'watches' (to deprecate).
-        ds->reset();
-        // this is needed to read a ds's value. Otherwise, a cached value may be returned.
-        ds->evaluate();
-
         DataSource<RTT::PropertyBag>* dspbag = DataSource<RTT::PropertyBag>::narrow(ds.get());
         if (dspbag) {
+            // This is needed for data sources that rely on initialization.
+            ds->reset();
+            ds->evaluate();
             RTT::PropertyBag bag( dspbag->get() );
             if (!recurse) {
                 int siz = bag.getProperties().size();
@@ -1808,49 +1803,15 @@ namespace OCL
             return;
         }
 
-        // Print the members of the type:
-        base::DataSourceBase::shared_ptr dsb(ds);
-        if (dsb->getMemberNames().empty() || dsb->getTypeInfo()->isStreamable() ) {
-            if (debug) cerr << "terminal item " << dsb->getTypeName() << nl;
-            if (usehex)
-                sresult << std::hex << dsb;
-            else
-                sresult << std::dec << dsb;
-        } else {
-            sresult << setw(0);
-            sresult << "{";
-            vector<string> names = dsb->getMemberNames();
-            if ( find(names.begin(), names.end(), "capacity") != names.end() &&
-                    find(names.begin(), names.end(), "size") != names.end() ) {
-                // is a container/sequence:
-                DataSource<int>::shared_ptr seq_size = dynamic_pointer_cast<DataSource<int> >(dsb->getMember("size"));
-                if (seq_size) {
-                    ValueDataSource<unsigned int>::shared_ptr index = new ValueDataSource<unsigned int>(0);
-                    // print max 10 items of sequence:
-                    sresult << " [";
-                    for (int i=0; i != seq_size->get(); ++i) {
-                        index->set( i );
-                        if (i == 10) {
-                            sresult << "...("<< seq_size->get() - 10 <<" items omitted)...";
-                            break;
-                        } else {
-                            DataSourceBase::shared_ptr element = dsb->getMember(index, DataSourceBase::shared_ptr() );
-                            doPrint(element, true);
-                            if (i+1 != seq_size->get())
-                                sresult <<", ";
-                        }
-                    }
-                    sresult << " ], "; // size and capacity will follow...
-                }
-            }
-            for(vector<string>::iterator it = names.begin(); it != names.end(); ) {
-                sresult  << *it << " = ";
-                doPrint( dsb->getMember(*it), true);
-                if (++it != names.end())
-                    sresult <<", ";
-            }
-            sresult <<" }";
+        OCL::detail::StructuredValueRenderOptions options;
+        options.hexadecimal = usehex;
+        const OCL::detail::StructuredValueRenderResult result =
+            OCL::detail::renderStructuredValue(ds, options);
+        if (result.status == OCL::detail::StructuredValueRenderStatus::evaluation_failed) {
+            sresult << "(evaluation failed)";
+            return;
         }
+        sresult << result.text;
     }
 
     struct comcol

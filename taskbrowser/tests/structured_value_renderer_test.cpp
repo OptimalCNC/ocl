@@ -6,6 +6,9 @@
 #include <boost/intrusive_ptr.hpp>
 #include <boost/serialization/nvp.hpp>
 #include <rtt/internal/DataSources.hpp>
+#include <rtt/Property.hpp>
+#include <rtt/PropertyBag.hpp>
+#include <rtt/TaskContext.hpp>
 #include <rtt/typekit/RealTimeTypekit.hpp>
 #include <rtt/types/SequenceTypeInfo.hpp>
 #include <rtt/types/StructTypeInfo.hpp>
@@ -21,6 +24,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "taskbrowser/TaskBrowser.hpp"
 
 namespace renderer_test {
 
@@ -207,6 +212,72 @@ private:
 };
 
 } // namespace
+
+class TaskBrowserProbe final : public OCL::TaskBrowser {
+public:
+  explicit TaskBrowserProbe(RTT::TaskContext *task)
+      : OCL::TaskBrowser(task) {
+    setColorTheme(nocolors);
+  }
+
+  std::string render(RTT::base::DataSourceBase::shared_ptr source,
+                     bool recurse = true) {
+    sresult.str("");
+    sresult.clear();
+    printResult(source.get(), recurse);
+    return sresult.str();
+  }
+};
+
+struct TaskBrowserFixture {
+  TaskBrowserFixture()
+      : task("taskbrowser-value-renderer"), browser(&task) {
+    loadRendererTypes();
+  }
+
+  RTT::TaskContext task;
+  TaskBrowserProbe browser;
+};
+
+BOOST_FIXTURE_TEST_CASE(taskbrowser_prints_the_exact_named_value,
+                        TaskBrowserFixture) {
+  const auto source = valueSource(renderer_test::Envelope{{3.0, 4.0}, 5});
+  BOOST_TEST(browser.render(source) ==
+             " = {point: {x: 3.0, y: 4.0}, quality: 5}");
+}
+
+BOOST_FIXTURE_TEST_CASE(taskbrowser_reads_a_structured_root_once,
+                        TaskBrowserFixture) {
+  boost::intrusive_ptr<CountingDataSource<renderer_test::Envelope>> source(
+      new CountingDataSource<renderer_test::Envelope>(
+          renderer_test::Envelope{{3.0, 4.0}, 5}));
+  BOOST_TEST(browser.render(source) ==
+             " = {point: {x: 3.0, y: 4.0}, quality: 5}");
+  BOOST_TEST(source->evaluationCount() == 1U);
+}
+
+BOOST_FIXTURE_TEST_CASE(taskbrowser_reports_a_failed_root_snapshot,
+                        TaskBrowserFixture) {
+  boost::intrusive_ptr<CountingDataSource<renderer_test::Envelope>> source(
+      new CountingDataSource<renderer_test::Envelope>(renderer_test::Envelope{}, false));
+  BOOST_TEST(browser.render(source) == " = (evaluation failed)");
+  BOOST_TEST(source->evaluationCount() == 1U);
+}
+
+BOOST_FIXTURE_TEST_CASE(property_bags_keep_the_specialized_display,
+                        TaskBrowserFixture) {
+  RTT::PropertyBag bag;
+  bag.ownProperty(new RTT::Property<std::int32_t>("answer", "", 42));
+  const auto source = valueSource(bag);
+
+  const std::string summary = browser.render(source, false);
+  BOOST_TEST(summary.find("1") != std::string::npos);
+  BOOST_TEST(summary.find("Properties") != std::string::npos);
+
+  const std::string expanded = browser.render(source, true);
+  BOOST_TEST(expanded.find("answer") != std::string::npos);
+  BOOST_TEST(expanded.find("42") != std::string::npos);
+}
 
 BOOST_AUTO_TEST_CASE(renders_named_structures_instead_of_stream_operators) {
   loadRendererTypes();
