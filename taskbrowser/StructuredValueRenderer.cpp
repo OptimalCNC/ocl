@@ -101,6 +101,9 @@ RenderNode captureNode(const DataSourcePtr &source, std::size_t structural_depth
   try {
     const auto memberFactory = source->getTypeInfo()->getMemberFactory();
     if (!memberFactory || source->getTypeName() == "String") {
+      if (!source->evaluate()) {
+        return unavailableNode();
+      }
       RenderNode node;
       node.scalar = scalarText(source, options.hexadecimal);
       return node;

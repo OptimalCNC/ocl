@@ -347,6 +347,29 @@ public:
   }
 };
 
+class FailingQualityDataSource final
+    : public RTT::internal::ValueDataSource<renderer_test::Envelope> {
+public:
+  explicit FailingQualityDataSource(renderer_test::Envelope value)
+      : RTT::internal::ValueDataSource<renderer_test::Envelope>(std::move(value)),
+        quality_(new CountingDataSource<std::int32_t>(5, false)) {}
+
+  RTT::base::DataSourceBase::shared_ptr
+  getMember(const std::string &name) override {
+    if (name == "quality") {
+      return quality_;
+    }
+    return RTT::internal::ValueDataSource<renderer_test::Envelope>::getMember(name);
+  }
+
+  std::size_t qualityEvaluationCount() const {
+    return quality_->evaluationCount();
+  }
+
+private:
+  boost::intrusive_ptr<CountingDataSource<std::int32_t>> quality_;
+};
+
 bool balancedDelimiters(const std::string &text) {
   std::vector<char> open;
   for (const char character : text) {
@@ -378,6 +401,33 @@ BOOST_AUTO_TEST_CASE(previews_zero_one_three_and_four_sequence_items) {
       {1.0, 2.0}, {3.0, 4.0}, {5.0, 6.0}, {7.0, 8.0}}));
   BOOST_TEST(four.text.find("[3]") == std::string::npos);
   BOOST_TEST(four.text.find("... 1 items omitted") != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(renders_primitive_floating_sequence_elements) {
+  loadRendererTypes();
+  const auto result = OCL::detail::renderStructuredValue(
+      valueSource(std::vector<double>{1.0, 2.5, 3.0}));
+
+  BOOST_TEST(result.status == OCL::detail::StructuredValueRenderStatus::rendered);
+  BOOST_TEST(result.text == "[[0]: 1.0, [1]: 2.5, [2]: 3.0]");
+}
+
+BOOST_AUTO_TEST_CASE(renders_primitive_integer_sequence_elements) {
+  loadRendererTypes();
+  const auto result = OCL::detail::renderStructuredValue(
+      valueSource(std::vector<std::int32_t>{10, 20}));
+
+  BOOST_TEST(result.status == OCL::detail::StructuredValueRenderStatus::rendered);
+  BOOST_TEST(result.text == "[[0]: 10, [1]: 20]");
+}
+
+BOOST_AUTO_TEST_CASE(renders_primitive_string_sequence_elements) {
+  loadRendererTypes();
+  const auto result = OCL::detail::renderStructuredValue(
+      valueSource(std::vector<std::string>{"alpha", "beta"}));
+
+  BOOST_TEST(result.status == OCL::detail::StructuredValueRenderStatus::rendered);
+  BOOST_TEST(result.text == "[[0]: alpha, [1]: beta]");
 }
 
 BOOST_AUTO_TEST_CASE(previews_a_thousand_sequence_items_with_a_bounded_compact_form) {
@@ -425,6 +475,16 @@ BOOST_AUTO_TEST_CASE(continues_after_an_unavailable_member) {
       renderer_test::Envelope{{3.0, 4.0}, 5});
   BOOST_TEST(OCL::detail::renderStructuredSnapshotForTest(snapshot) ==
              "{point: {x: 3.0, y: 4.0}, quality: <unavailable>}");
+}
+
+BOOST_AUTO_TEST_CASE(continues_after_a_scalar_member_fails_evaluation) {
+  loadRendererTypes();
+  auto *probe = new FailingQualityDataSource(
+      renderer_test::Envelope{{3.0, 4.0}, 5});
+  RTT::base::DataSourceBase::shared_ptr snapshot(probe);
+  BOOST_TEST(OCL::detail::renderStructuredSnapshotForTest(snapshot) ==
+             "{point: {x: 3.0, y: 4.0}, quality: <unavailable>}");
+  BOOST_TEST(probe->qualityEvaluationCount() == 1U);
 }
 
 BOOST_AUTO_TEST_CASE(enforces_a_delimiter_safe_byte_budget) {
