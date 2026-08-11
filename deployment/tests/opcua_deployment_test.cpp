@@ -12,6 +12,8 @@
 #include <rtt/opcua/object_model.hpp>
 #include <rtt/opcua/server.hpp>
 #include <rtt/opcua/task_context_proxy.hpp>
+#include <rtt/os/StartStopManager.hpp>
+#include <rtt/os/startstop.h>
 #include <rtt/typekit/RealTimeTypekit.hpp>
 #include <rtt/types/TemplateTypeInfo.hpp>
 #include <rtt/types/Types.hpp>
@@ -32,6 +34,30 @@
 #include <vector>
 
 namespace {
+
+class RttProcessFixture final {
+public:
+  RttProcessFixture() {
+    auto &suite = boost::unit_test::framework::master_test_suite();
+    if (__os_init(suite.argc, suite.argv) != 0) {
+      throw std::runtime_error("failed to initialize RTT test process");
+    }
+  }
+
+  ~RttProcessFixture() {
+#ifdef OROCOS_TARGET_XENOMAI
+    RTT::os::StartStopManager::Instance()->stop();
+    RTT::os::StartStopManager::Release();
+#else
+    __os_exit();
+#endif
+  }
+
+  RttProcessFixture(const RttProcessFixture &) = delete;
+  RttProcessFixture &operator=(const RttProcessFixture &) = delete;
+};
+
+BOOST_GLOBAL_FIXTURE(RttProcessFixture);
 
 struct UnsupportedValue {
   std::int32_t value{0};

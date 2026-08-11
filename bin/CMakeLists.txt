@@ -40,7 +40,7 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
 
     orocos_executable(deployer-opcua deployer.cpp deployer-funcs.cpp)
     target_compile_definitions(deployer-opcua PRIVATE OCL_OPCUA_DEPLOYER)
-    target_include_directories(deployer-opcua PRIVATE ${RTT_OPCUA_INCLUDE_DIRS})
+    target_include_directories(deployer-opcua SYSTEM PRIVATE ${RTT_OPCUA_INCLUDE_DIRS})
     target_compile_options(deployer-opcua PRIVATE ${RTT_OPCUA_CFLAGS_OTHER})
     IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
       target_compile_options(deployer-opcua PRIVATE
@@ -54,7 +54,7 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
 
     orocos_executable(ctaskbrowser-opcua ctaskbrowser-opcua.cpp)
     target_compile_definitions(ctaskbrowser-opcua PRIVATE RTT_STATIC)
-    target_include_directories(ctaskbrowser-opcua PRIVATE
+    target_include_directories(ctaskbrowser-opcua SYSTEM PRIVATE
       ${RTT_OPCUA_INCLUDE_DIRS})
     target_compile_options(ctaskbrowser-opcua PRIVATE
       ${RTT_OPCUA_CFLAGS_OTHER})
@@ -68,10 +68,12 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
       ${RTT_OPCUA_LDFLAGS} ${EXTRA_LIBRARIES})
 
     IF(BUILD_TESTING)
-      add_test(NAME ctaskbrowser_opcua_help
-        COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --help)
-      set_tests_properties(ctaskbrowser_opcua_help PROPERTIES
-        PASS_REGULAR_EXPRESSION "--import PACKAGE")
+      IF(NOT "${OROCOS_TARGET}" STREQUAL "xenomai")
+        add_test(NAME ctaskbrowser_opcua_help
+          COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --help)
+        set_tests_properties(ctaskbrowser_opcua_help PROPERTIES
+          PASS_REGULAR_EXPRESSION "--import PACKAGE")
+      ENDIF()
 
       add_test(NAME ctaskbrowser_opcua_missing_import
         COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --import)
@@ -79,15 +81,16 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
         WILL_FAIL TRUE)
 
       add_test(NAME ctaskbrowser_opcua_empty_import
-        COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --import= --help)
+        COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --import=)
       set_tests_properties(ctaskbrowser_opcua_empty_import PROPERTIES
-        WILL_FAIL TRUE)
+        PASS_REGULAR_EXPRESSION "--import requires a package name")
 
       add_test(NAME ctaskbrowser_opcua_repeated_imports
         COMMAND $<TARGET_FILE:ctaskbrowser-opcua>
-          --import fixture_a --import=fixture_b --help)
+          --import fixture_a --import=fixture_b)
       set_tests_properties(ctaskbrowser_opcua_repeated_imports PROPERTIES
-        PASS_REGULAR_EXPRESSION "--import PACKAGE")
+        PASS_REGULAR_EXPRESSION
+          "exactly one endpoint and one component name are required")
 
       add_test(NAME ctaskbrowser_opcua_positional_arity
         COMMAND $<TARGET_FILE:ctaskbrowser-opcua>

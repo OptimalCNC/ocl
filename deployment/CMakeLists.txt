@@ -39,7 +39,7 @@ IF ( BUILD_DEPLOYMENT )
           SOVERSION ${OCL_SOVERSION}
           DEFINE_SYMBOL OCL_DLL_EXPORT)
         orocos_install_headers(OpcUaDeploymentComponent.hpp INSTALL include/orocos/ocl)
-        TARGET_INCLUDE_DIRECTORIES(orocos-ocl-deployment-opcua PRIVATE
+        TARGET_INCLUDE_DIRECTORIES(orocos-ocl-deployment-opcua SYSTEM PRIVATE
           ${RTT_OPCUA_INCLUDE_DIRS})
         TARGET_COMPILE_OPTIONS(orocos-ocl-deployment-opcua PRIVATE
           ${RTT_OPCUA_CFLAGS_OTHER})
@@ -66,7 +66,7 @@ IF ( BUILD_DEPLOYMENT )
       IF(OCL_OPCUA_FOUND)
         add_executable(ocl_opcua_deployment_test tests/opcua_deployment_test.cpp)
         orocos_configure_executable(ocl_opcua_deployment_test)
-        target_include_directories(ocl_opcua_deployment_test PRIVATE
+        target_include_directories(ocl_opcua_deployment_test SYSTEM PRIVATE
           ${RTT_OPCUA_INCLUDE_DIRS})
         target_compile_options(ocl_opcua_deployment_test PRIVATE
           ${RTT_OPCUA_CFLAGS_OTHER})
