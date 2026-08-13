@@ -3,11 +3,17 @@
 
 #include "deployment/OpcUaDeploymentComponent.hpp"
 
+#include <rtt/InputPort.hpp>
 #include <rtt/OperationCaller.hpp>
+#include <rtt/OutputPort.hpp>
 #include <rtt/Property.hpp>
 #include <rtt/Service.hpp>
 #include <rtt/TaskContext.hpp>
+#include <rtt/base/AttributeBase.hpp>
+#include <rtt/base/InputPortInterface.hpp>
+#include <rtt/base/OutputPortInterface.hpp>
 #include <rtt/deployment/ComponentLoader.hpp>
+#include <rtt/internal/DataSources.hpp>
 #include <rtt/opcua/datatype_registry.hpp>
 #include <rtt/opcua/object_model.hpp>
 #include <rtt/opcua/server.hpp>
@@ -24,12 +30,14 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -90,6 +98,19 @@ std::uint16_t unusedLoopbackPort() {
   const std::uint16_t port = ntohs(address.sin_port);
   ::close(socket_fd);
   return port;
+}
+
+template <typename Predicate>
+bool waitUntil(Predicate predicate,
+               std::chrono::milliseconds timeout = std::chrono::seconds(2)) {
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (predicate()) {
+      return true;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  return predicate();
 }
 
 class OccupiedLoopbackPort final {
@@ -166,6 +187,58 @@ public:
 private:
   std::int32_t echo(std::int32_t value) { return value; }
   std::int32_t lateEcho(std::int32_t value) { return value + 1; }
+};
+
+class CompleteMappingTask final : public RTT::TaskContext {
+public:
+  CompleteMappingTask()
+      : RTT::TaskContext("CompleteMapping"),
+        control(RTT::Service::Create("control")) {
+    addOperation("add", &CompleteMappingTask::add, this, RTT::ClientThread)
+        .arg("left", "Left operand.")
+        .arg("right", "Right operand.");
+    addProperty("Gain", gain);
+    addAttribute("Mode", mode);
+    addConstant("Model", model);
+    addPort(command);
+    addEventPort(trigger);
+    addPort(feedback);
+
+    control->addOperation("scale", &CompleteMappingTask::scale, this,
+                          RTT::ClientThread)
+        .arg("value", "Value to scale.");
+    control->addProperty("Offset", offset);
+    control->addAttribute("Enabled", enabled);
+    control->addConstant("Unit", unit);
+    control->addPort(service_command);
+    control->addPort(service_feedback);
+    BOOST_REQUIRE(provides()->addService(control));
+  }
+
+  ~CompleteMappingTask() override {
+    control->removePort(service_command.getName());
+    control->removePort(service_feedback.getName());
+    control->clear();
+  }
+
+  std::int32_t add(std::int32_t left, std::int32_t right) const {
+    return left + right;
+  }
+
+  std::int32_t scale(std::int32_t value) const { return value * 2 + offset; }
+
+  std::int32_t gain{7};
+  std::string mode{"manual"};
+  std::string model{"fixture-v1"};
+  RTT::InputPort<std::int32_t> command{"Command"};
+  RTT::InputPort<bool> trigger{"Trigger"};
+  RTT::OutputPort<std::int32_t> feedback{"Feedback"};
+  RTT::Service::shared_ptr control;
+  std::int32_t offset{2};
+  bool enabled{false};
+  std::string unit{"counts"};
+  RTT::InputPort<std::int32_t> service_command{"ServiceCommand"};
+  RTT::OutputPort<std::int32_t> service_feedback{"ServiceFeedback"};
 };
 
 class UnsupportedTask final : public RTT::TaskContext {
@@ -295,9 +368,11 @@ BOOST_AUTO_TEST_CASE(explicit_start_publishes_only_deployer) {
 BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   loadRttTypes(true);
   EchoTask local("LocalEcho");
+  CompleteMappingTask complete;
   UnsupportedTask unsupported;
   OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
   BOOST_REQUIRE(deployer.addPeer(&local));
+  BOOST_REQUIRE(deployer.addPeer(&complete));
   BOOST_REQUIRE(deployer.addPeer(&unsupported));
   BOOST_REQUIRE(deployer.startOpcUa());
 
@@ -319,6 +394,125 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   BOOST_REQUIRE(gain != nullptr);
   gain->set(9);
   BOOST_TEST(local.gain == 9);
+
+  BOOST_REQUIRE(deployer.publishComponent(complete.getName()));
+  auto complete_proxy = RTT::opcua::TaskContextProxy::create(
+      deployer.opcUaEndpointUrl(), complete.getName(), {}, &error);
+  BOOST_REQUIRE_MESSAGE(complete_proxy != nullptr, error);
+
+  RTT::OperationCaller<std::int32_t(std::int32_t, std::int32_t)> add =
+      complete_proxy->getOperation("add");
+  BOOST_REQUIRE(add.ready());
+  BOOST_TEST(add(20, 22) == 42);
+  auto *complete_gain = dynamic_cast<RTT::Property<std::int32_t> *>(
+      complete_proxy->provides()->getProperty("Gain"));
+  BOOST_REQUIRE(complete_gain != nullptr);
+  complete_gain->set(11);
+  BOOST_TEST(complete.gain == 11);
+  RTT::base::AttributeBase *mode =
+      complete_proxy->provides()->getAttribute("Mode");
+  BOOST_REQUIRE(mode != nullptr);
+  auto *mode_source = RTT::internal::AssignableDataSource<std::string>::narrow(
+      mode->getDataSource().get());
+  BOOST_REQUIRE(mode_source != nullptr);
+  mode_source->set("automatic");
+  BOOST_TEST(complete.mode == "automatic");
+  RTT::base::AttributeBase *model =
+      complete_proxy->provides()->getAttribute("Model");
+  BOOST_REQUIRE(model != nullptr);
+  BOOST_TEST(!model->getDataSource()->isAssignable());
+  auto *model_source = RTT::internal::DataSource<std::string>::narrow(
+      model->getDataSource().get());
+  BOOST_REQUIRE(model_source != nullptr);
+  BOOST_TEST(model_source->get() == "fixture-v1");
+
+  auto *remote_command = dynamic_cast<RTT::base::InputPortInterface *>(
+      complete_proxy->ports()->getPort("Command"));
+  auto *remote_feedback = dynamic_cast<RTT::base::OutputPortInterface *>(
+      complete_proxy->ports()->getPort("Feedback"));
+  BOOST_REQUIRE(remote_command != nullptr);
+  BOOST_REQUIRE(remote_feedback != nullptr);
+  BOOST_REQUIRE(complete_proxy->ports()->getPort("Trigger") != nullptr);
+  RTT::Service::shared_ptr command_service =
+      complete_proxy->provides()->getService("Command");
+  RTT::Service::shared_ptr trigger_service =
+      complete_proxy->provides()->getService("Trigger");
+  RTT::Service::shared_ptr feedback_service =
+      complete_proxy->provides()->getService("Feedback");
+  BOOST_REQUIRE(command_service);
+  BOOST_REQUIRE(trigger_service);
+  BOOST_REQUIRE(feedback_service);
+  BOOST_REQUIRE(command_service->getOperation("read") != nullptr);
+  BOOST_REQUIRE(trigger_service->getOperation("read") != nullptr);
+  BOOST_REQUIRE(feedback_service->getOperation("last") != nullptr);
+
+  RTT::OutputPort<std::int32_t> command_source("CommandSource");
+  BOOST_REQUIRE(command_source.createConnection(
+      *remote_command,
+      RTT::ConnPolicy::data(RTT::ConnPolicy::LOCK_FREE, false)));
+  BOOST_TEST(command_source.write(std::int32_t{73}) == RTT::WriteSuccess);
+  std::int32_t command_value = 0;
+  BOOST_REQUIRE(waitUntil(
+      [&] { return complete.command.read(command_value) == RTT::NewData; }));
+  BOOST_TEST(command_value == 73);
+
+  RTT::InputPort<std::int32_t> feedback_sink("FeedbackSink");
+  BOOST_REQUIRE(remote_feedback->createConnection(
+      feedback_sink, RTT::ConnPolicy::data(RTT::ConnPolicy::LOCK_FREE, false)));
+  BOOST_TEST(complete.feedback.write(std::int32_t{84}) == RTT::WriteSuccess);
+  std::int32_t feedback_value = 0;
+  BOOST_REQUIRE(waitUntil(
+      [&] { return feedback_sink.read(feedback_value) == RTT::NewData; }));
+  BOOST_TEST(feedback_value == 84);
+  RTT::OperationCaller<std::int32_t()> last =
+      feedback_service->getOperation("last");
+  BOOST_REQUIRE(last.ready());
+  BOOST_TEST(last() == 84);
+
+  RTT::Service::shared_ptr control =
+      complete_proxy->provides()->getService("control");
+  BOOST_REQUIRE(control);
+  RTT::OperationCaller<std::int32_t(std::int32_t)> scale =
+      control->getOperation("scale");
+  BOOST_REQUIRE(scale.ready());
+  auto *offset = dynamic_cast<RTT::Property<std::int32_t> *>(
+      control->getProperty("Offset"));
+  BOOST_REQUIRE(offset != nullptr);
+  offset->set(3);
+  BOOST_TEST(complete.offset == 3);
+  BOOST_TEST(scale(10) == 23);
+  RTT::base::AttributeBase *enabled = control->getAttribute("Enabled");
+  BOOST_REQUIRE(enabled != nullptr);
+  auto *enabled_source = RTT::internal::AssignableDataSource<bool>::narrow(
+      enabled->getDataSource().get());
+  BOOST_REQUIRE(enabled_source != nullptr);
+  enabled_source->set(true);
+  BOOST_TEST(complete.enabled);
+  RTT::base::AttributeBase *unit = control->getAttribute("Unit");
+  BOOST_REQUIRE(unit != nullptr);
+  BOOST_TEST(!unit->getDataSource()->isAssignable());
+  BOOST_REQUIRE(control->getPort("ServiceCommand") != nullptr);
+  auto *remote_service_feedback =
+      dynamic_cast<RTT::base::OutputPortInterface *>(
+          control->getPort("ServiceFeedback"));
+  BOOST_REQUIRE(remote_service_feedback != nullptr);
+  BOOST_REQUIRE(control->getService("ServiceCommand"));
+  BOOST_REQUIRE(control->getService("ServiceFeedback"));
+  RTT::InputPort<std::int32_t> service_feedback_sink("ServiceFeedbackSink");
+  BOOST_REQUIRE(remote_service_feedback->createConnection(
+      service_feedback_sink,
+      RTT::ConnPolicy::data(RTT::ConnPolicy::LOCK_FREE, false)));
+  BOOST_TEST(complete.service_feedback.write(std::int32_t{91}) ==
+             RTT::WriteSuccess);
+  std::int32_t service_feedback_value = 0;
+  BOOST_REQUIRE(waitUntil([&] {
+    return service_feedback_sink.read(service_feedback_value) == RTT::NewData;
+  }));
+  BOOST_TEST(service_feedback_value == 91);
+
+  service_feedback_sink.disconnect();
+  feedback_sink.disconnect();
+  command_source.disconnect();
 
   local.addLateResource();
   BOOST_TEST(deployer.publishComponent(local.getName()));
