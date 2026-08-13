@@ -15,6 +15,7 @@
 #include <rtt/deployment/ComponentLoader.hpp>
 #include <rtt/internal/DataSources.hpp>
 #include <rtt/opcua/datatype_registry.hpp>
+#include <rtt/opcua/node_id.hpp>
 #include <rtt/opcua/object_model.hpp>
 #include <rtt/opcua/server.hpp>
 #include <rtt/opcua/task_context_proxy.hpp>
@@ -23,6 +24,9 @@
 #include <rtt/typekit/RealTimeTypekit.hpp>
 #include <rtt/types/TemplateTypeInfo.hpp>
 #include <rtt/types/Types.hpp>
+
+#include <open62541pp/client.hpp>
+#include <open62541pp/services/attribute_highlevel.hpp>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -34,6 +38,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -98,6 +104,33 @@ std::uint16_t unusedLoopbackPort() {
   const std::uint16_t port = ntohs(address.sin_port);
   ::close(socket_fd);
   return port;
+}
+
+::opcua::NodeId modelNodeId(std::uint16_t namespace_index,
+                            std::initializer_list<std::string_view> segments) {
+  const std::vector<std::string_view> path_segments(segments);
+  return ::opcua::NodeId(namespace_index,
+                         RTT::opcua::makeNodePath(path_segments));
+}
+
+std::uint16_t namespaceIndex(::opcua::Client &client) {
+  const auto namespaces = client.namespaceArray();
+  const auto found = std::find(namespaces.begin(), namespaces.end(),
+                               RTT::opcua::kNamespaceUri);
+  if (found == namespaces.end()) {
+    throw std::runtime_error("RTT OPC UA namespace URI is missing");
+  }
+  const auto index = std::distance(namespaces.begin(), found);
+  if (index < 0 || index > std::numeric_limits<std::uint16_t>::max()) {
+    throw std::runtime_error("RTT OPC UA namespace index is invalid");
+  }
+  return static_cast<std::uint16_t>(index);
+}
+
+void requireMissingNode(::opcua::Client &client, const ::opcua::NodeId &id) {
+  const auto result = ::opcua::services::readNodeClass(client, id);
+  BOOST_REQUIRE(!result);
+  BOOST_TEST(result.code() == UA_STATUSCODE_BADNODEIDUNKNOWN);
 }
 
 template <typename Predicate>
@@ -396,6 +429,21 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   BOOST_TEST(local.gain == 9);
 
   BOOST_REQUIRE(deployer.publishComponent(complete.getName()));
+  ::opcua::Client client;
+  client.connect(deployer.opcUaEndpointUrl());
+  const std::uint16_t namespace_index = namespaceIndex(client);
+  BOOST_REQUIRE(::opcua::services::readNodeClass(
+      client,
+      modelNodeId(namespace_index, {"components", "CompleteMapping", "services",
+                                    "Command", "operations"})));
+  for (const std::string_view category :
+       {"properties", "attributes", "ports", "services"}) {
+    requireMissingNode(client, modelNodeId(namespace_index,
+                                           {"components", "CompleteMapping",
+                                            "services", "Command", category}));
+  }
+  client.disconnect();
+
   auto complete_proxy = RTT::opcua::TaskContextProxy::create(
       deployer.opcUaEndpointUrl(), complete.getName(), {}, &error);
   BOOST_REQUIRE_MESSAGE(complete_proxy != nullptr, error);

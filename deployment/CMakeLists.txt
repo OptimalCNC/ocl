@@ -64,6 +64,7 @@ IF ( BUILD_DEPLOYMENT )
       target_link_libraries(ocl_deployment_api_check orocos-ocl-deployment)
 
       IF(OCL_OPCUA_FOUND)
+        find_package(open62541pp 0.21.2 CONFIG REQUIRED)
         add_executable(ocl_opcua_deployment_test tests/opcua_deployment_test.cpp)
         orocos_configure_executable(ocl_opcua_deployment_test)
         target_include_directories(ocl_opcua_deployment_test SYSTEM PRIVATE
@@ -75,7 +76,7 @@ IF ( BUILD_DEPLOYMENT )
             -Wall -Wextra -Wpedantic -Werror)
         ENDIF()
         target_link_libraries(ocl_opcua_deployment_test
-          orocos-ocl-deployment-opcua ${RTT_OPCUA_LDFLAGS}
+          orocos-ocl-deployment-opcua open62541pp::open62541pp ${RTT_OPCUA_LDFLAGS}
           ${OROCOS-RTT_TYPEKIT_LIBRARIES})
         foreach(case IN ITEMS
             explicit_start_publishes_only_deployer
