@@ -14,6 +14,7 @@
 #include <rtt/base/OutputPortInterface.hpp>
 #include <rtt/deployment/ComponentLoader.hpp>
 #include <rtt/internal/DataSources.hpp>
+#include <rtt/opcua/port_direction.hpp>
 #include <rtt/opcua/datatype_registry.hpp>
 #include <rtt/opcua/node_id.hpp>
 #include <rtt/opcua/object_model.hpp>
@@ -131,6 +132,20 @@ void requireMissingNode(::opcua::Client &client, const ::opcua::NodeId &id) {
   const auto result = ::opcua::services::readNodeClass(client, id);
   BOOST_REQUIRE(!result);
   BOOST_TEST(result.code() == UA_STATUSCODE_BADNODEIDUNKNOWN);
+}
+
+void requirePortDirection(
+    ::opcua::Client &client, std::uint16_t namespace_index,
+    std::initializer_list<std::string_view> segments,
+    RTT::opcua::PortDirection expected) {
+  const auto id = modelNodeId(namespace_index, segments);
+  const auto value = ::opcua::services::readValue(client, id);
+  BOOST_REQUIRE(value);
+  BOOST_TEST(value.value().isScalar());
+  BOOST_TEST(value.value().isType(
+      ::opcua::NodeId(::opcua::DataTypeId::Int32)));
+  BOOST_TEST(value.value().to<std::int32_t>() ==
+             static_cast<std::int32_t>(expected));
 }
 
 template <typename Predicate>
@@ -432,6 +447,28 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   ::opcua::Client client;
   client.connect(deployer.opcUaEndpointUrl());
   const std::uint16_t namespace_index = namespaceIndex(client);
+  requirePortDirection(
+      client, namespace_index,
+      {"components", "CompleteMapping", "ports", "Command", "direction"},
+      RTT::opcua::PortDirection::input);
+  requirePortDirection(
+      client, namespace_index,
+      {"components", "CompleteMapping", "ports", "Trigger", "direction"},
+      RTT::opcua::PortDirection::input);
+  requirePortDirection(
+      client, namespace_index,
+      {"components", "CompleteMapping", "ports", "Feedback", "direction"},
+      RTT::opcua::PortDirection::output);
+  requirePortDirection(
+      client, namespace_index,
+      {"components", "CompleteMapping", "services", "control", "ports",
+       "ServiceCommand", "direction"},
+      RTT::opcua::PortDirection::input);
+  requirePortDirection(
+      client, namespace_index,
+      {"components", "CompleteMapping", "services", "control", "ports",
+       "ServiceFeedback", "direction"},
+      RTT::opcua::PortDirection::output);
   BOOST_REQUIRE(::opcua::services::readNodeClass(
       client,
       modelNodeId(namespace_index, {"components", "CompleteMapping", "services",
