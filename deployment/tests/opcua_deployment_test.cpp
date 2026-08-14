@@ -540,11 +540,11 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   requirePortValue(
       client, namespace_index,
       {"components", "CompleteMapping", "ports", "Command", "value"},
-      ::opcua::NodeId(::opcua::DataTypeId::Int32), false, true);
+      ::opcua::NodeId(::opcua::DataTypeId::Int32), true, true);
   requirePortValue(
       client, namespace_index,
       {"components", "CompleteMapping", "ports", "Trigger", "value"},
-      ::opcua::NodeId(::opcua::DataTypeId::Boolean), false, true);
+      ::opcua::NodeId(::opcua::DataTypeId::Boolean), true, true);
   requirePortValue(
       client, namespace_index,
       {"components", "CompleteMapping", "ports", "Feedback", "value"},
@@ -552,7 +552,7 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   requirePortValue(client, namespace_index,
                    {"components", "CompleteMapping", "services", "control",
                     "ports", "ServiceCommand", "value"},
-                   ::opcua::NodeId(::opcua::DataTypeId::Int32), false, true);
+                   ::opcua::NodeId(::opcua::DataTypeId::Int32), true, true);
   requirePortValue(client, namespace_index,
                    {"components", "CompleteMapping", "services", "control",
                     "ports", "ServiceFeedback", "value"},
@@ -591,6 +591,11 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   const auto command_value_id =
       modelNodeId(namespace_index, {"components", "CompleteMapping", "ports",
                                     "Command", "value"});
+  const auto initial_command =
+      ::opcua::services::readValue(client, command_value_id);
+  BOOST_REQUIRE(!initial_command);
+  BOOST_TEST(initial_command.code() == UA_STATUSCODE_BADWAITINGFORINITIALDATA);
+
   BOOST_TEST(::opcua::services::writeValue(client, command_value_id,
                                            ::opcua::Variant(std::int32_t{61}))
                  .isGood());
@@ -599,6 +604,9 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
     return complete.command.read(direct_command_value) == RTT::NewData;
   }));
   BOOST_TEST(direct_command_value == 61);
+  BOOST_TEST(::opcua::services::readValue(client, command_value_id)
+                 .value()
+                 .to<std::int32_t>() == 61);
   BOOST_TEST(::opcua::services::writeValue(client, command_value_id,
                                            ::opcua::Variant(std::int32_t{61}))
                  .isGood());
@@ -606,10 +614,6 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
     return complete.command.read(direct_command_value) == RTT::NewData;
   }));
   BOOST_TEST(direct_command_value == 61);
-  const auto command_read =
-      ::opcua::services::readValue(client, command_value_id);
-  BOOST_REQUIRE(!command_read);
-  BOOST_TEST(command_read.code() == UA_STATUSCODE_BADNOTREADABLE);
 
   BOOST_TEST(complete.feedback.write(std::int32_t{81}) == RTT::WriteSuccess);
   BOOST_TEST(complete.feedback.write(std::int32_t{82}) == RTT::WriteSuccess);
