@@ -28,6 +28,7 @@
 
 #include <open62541pp/client.hpp>
 #include <open62541pp/services/attribute_highlevel.hpp>
+#include <open62541pp/services/method.hpp>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -132,6 +133,33 @@ void requireMissingNode(::opcua::Client &client, const ::opcua::NodeId &id) {
   const auto result = ::opcua::services::readNodeClass(client, id);
   BOOST_REQUIRE(!result);
   BOOST_TEST(result.code() == UA_STATUSCODE_BADNODEIDUNKNOWN);
+}
+
+void requireTaskStateMethod(::opcua::Client &client,
+                            std::uint16_t namespace_index,
+                            std::string_view component_name,
+                            std::string_view operation_name,
+                            std::int32_t expected_code) {
+  const auto operations_id = modelNodeId(
+      namespace_index, {"components", component_name, "operations"});
+  const auto method_id = modelNodeId(
+      namespace_index,
+      {"components", component_name, "operations", operation_name});
+  const auto output_types_id = modelNodeId(
+      namespace_index, {"components", component_name, "operations",
+                        operation_name, "rttOutputTypes"});
+  const auto result =
+      ::opcua::services::call(client, operations_id, method_id, {});
+  BOOST_REQUIRE(result.statusCode().isGood());
+  BOOST_REQUIRE_EQUAL(result.outputArguments().size(), 1U);
+  BOOST_TEST(result.outputArguments()[0].isScalar());
+  BOOST_TEST(result.outputArguments()[0].isType(
+      ::opcua::NodeId(::opcua::DataTypeId::Int32)));
+  BOOST_TEST(result.outputArguments()[0].to<std::int32_t>() == expected_code);
+  BOOST_TEST(::opcua::services::readValue(client, output_types_id)
+                 .value()
+                 .to<std::vector<std::string>>() ==
+             std::vector<std::string>({"TaskState"}));
 }
 
 void requirePortDirection(
@@ -447,6 +475,14 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   ::opcua::Client client;
   client.connect(deployer.opcUaEndpointUrl());
   const std::uint16_t namespace_index = namespaceIndex(client);
+  requireMissingNode(
+      client,
+      modelNodeId(namespace_index,
+                  {"components", "CompleteMapping", "lifecycleState"}));
+  requireTaskStateMethod(client, namespace_index, complete.getName(),
+                         "getTaskState", 4);
+  requireTaskStateMethod(client, namespace_index, complete.getName(),
+                         "getTargetState", 4);
   requirePortDirection(
       client, namespace_index,
       {"components", "CompleteMapping", "ports", "Command", "direction"},
@@ -484,6 +520,15 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   auto complete_proxy = RTT::opcua::TaskContextProxy::create(
       deployer.opcUaEndpointUrl(), complete.getName(), {}, &error);
   BOOST_REQUIRE_MESSAGE(complete_proxy != nullptr, error);
+  BOOST_TEST(complete_proxy->ready());
+  BOOST_TEST(complete_proxy->getTaskState() == complete.getTaskState());
+  BOOST_TEST(complete_proxy->getTargetState() == complete.getTargetState());
+  BOOST_TEST(complete_proxy->isConfigured() == complete.isConfigured());
+  BOOST_TEST(complete_proxy->isActive() == complete.isActive());
+  BOOST_TEST(complete_proxy->isRunning() == complete.isRunning());
+  BOOST_TEST(complete_proxy->inFatalError() == complete.inFatalError());
+  BOOST_TEST(complete_proxy->inException() == complete.inException());
+  BOOST_TEST(complete_proxy->inRunTimeError() == complete.inRunTimeError());
 
   RTT::OperationCaller<std::int32_t(std::int32_t, std::int32_t)> add =
       complete_proxy->getOperation("add");
