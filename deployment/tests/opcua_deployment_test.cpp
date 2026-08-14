@@ -49,6 +49,10 @@
 #include <utility>
 #include <vector>
 
+BOOST_TEST_DONT_PRINT_LOG_VALUE(::opcua::NodeClass)
+BOOST_TEST_DONT_PRINT_LOG_VALUE(::opcua::NodeId)
+BOOST_TEST_DONT_PRINT_LOG_VALUE(::opcua::ValueRank)
+
 namespace {
 
 class RttProcessFixture final {
@@ -174,6 +178,34 @@ void requirePortDirection(
       ::opcua::NodeId(::opcua::DataTypeId::Int32)));
   BOOST_TEST(value.value().to<std::int32_t>() ==
              static_cast<std::int32_t>(expected));
+}
+
+void requirePortValue(::opcua::Client &client, std::uint16_t namespace_index,
+                      std::initializer_list<std::string_view> segments,
+                      const ::opcua::NodeId &expected_data_type, bool readable,
+                      bool writable) {
+  const auto id = modelNodeId(namespace_index, segments);
+  const auto node_class = ::opcua::services::readNodeClass(client, id);
+  const auto data_type = ::opcua::services::readDataType(client, id);
+  const auto value_rank = ::opcua::services::readValueRank(client, id);
+  const auto access = ::opcua::services::readAccessLevel(client, id);
+  const auto user_access = ::opcua::services::readUserAccessLevel(client, id);
+  BOOST_REQUIRE(node_class);
+  BOOST_REQUIRE(data_type);
+  BOOST_REQUIRE(value_rank);
+  BOOST_REQUIRE(access);
+  BOOST_REQUIRE(user_access);
+  BOOST_TEST(node_class.value() == ::opcua::NodeClass::Variable);
+  BOOST_TEST(data_type.value() == expected_data_type);
+  BOOST_TEST(value_rank.value() == ::opcua::ValueRank::Scalar);
+  BOOST_TEST(access.value().anyOf(::opcua::AccessLevel::CurrentRead) ==
+             readable);
+  BOOST_TEST(access.value().anyOf(::opcua::AccessLevel::CurrentWrite) ==
+             writable);
+  BOOST_TEST(user_access.value().anyOf(::opcua::AccessLevel::CurrentRead) ==
+             readable);
+  BOOST_TEST(user_access.value().anyOf(::opcua::AccessLevel::CurrentWrite) ==
+             writable);
 }
 
 template <typename Predicate>
@@ -505,16 +537,90 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
       {"components", "CompleteMapping", "services", "control", "ports",
        "ServiceFeedback", "direction"},
       RTT::opcua::PortDirection::output);
+  requirePortValue(
+      client, namespace_index,
+      {"components", "CompleteMapping", "ports", "Command", "value"},
+      ::opcua::NodeId(::opcua::DataTypeId::Int32), false, true);
+  requirePortValue(
+      client, namespace_index,
+      {"components", "CompleteMapping", "ports", "Trigger", "value"},
+      ::opcua::NodeId(::opcua::DataTypeId::Boolean), false, true);
+  requirePortValue(
+      client, namespace_index,
+      {"components", "CompleteMapping", "ports", "Feedback", "value"},
+      ::opcua::NodeId(::opcua::DataTypeId::Int32), true, false);
+  requirePortValue(client, namespace_index,
+                   {"components", "CompleteMapping", "services", "control",
+                    "ports", "ServiceCommand", "value"},
+                   ::opcua::NodeId(::opcua::DataTypeId::Int32), false, true);
+  requirePortValue(client, namespace_index,
+                   {"components", "CompleteMapping", "services", "control",
+                    "ports", "ServiceFeedback", "value"},
+                   ::opcua::NodeId(::opcua::DataTypeId::Int32), true, false);
+  for (const std::initializer_list<std::string_view> method_path : {
+           std::initializer_list<std::string_view>{
+               "components", "CompleteMapping", "ports", "Command", "write"},
+           std::initializer_list<std::string_view>{
+               "components", "CompleteMapping", "ports", "Trigger", "write"},
+           std::initializer_list<std::string_view>{
+               "components", "CompleteMapping", "ports", "Feedback", "read"},
+           std::initializer_list<std::string_view>{
+               "components", "CompleteMapping", "services", "control", "ports",
+               "ServiceCommand", "write"},
+           std::initializer_list<std::string_view>{
+               "components", "CompleteMapping", "services", "control", "ports",
+               "ServiceFeedback", "read"},
+       }) {
+    requireMissingNode(client, modelNodeId(namespace_index, method_path));
+  }
   BOOST_REQUIRE(::opcua::services::readNodeClass(
       client,
       modelNodeId(namespace_index, {"components", "CompleteMapping", "services",
                                     "Command", "operations"})));
+  BOOST_REQUIRE(::opcua::services::readNodeClass(
+      client,
+      modelNodeId(namespace_index, {"components", "CompleteMapping", "services",
+                                    "Command", "operations", "read"})));
   for (const std::string_view category :
        {"properties", "attributes", "ports", "services"}) {
     requireMissingNode(client, modelNodeId(namespace_index,
                                            {"components", "CompleteMapping",
                                             "services", "Command", category}));
   }
+
+  const auto command_value_id =
+      modelNodeId(namespace_index, {"components", "CompleteMapping", "ports",
+                                    "Command", "value"});
+  BOOST_TEST(::opcua::services::writeValue(client, command_value_id,
+                                           ::opcua::Variant(std::int32_t{61}))
+                 .isGood());
+  std::int32_t direct_command_value = 0;
+  BOOST_REQUIRE(waitUntil([&] {
+    return complete.command.read(direct_command_value) == RTT::NewData;
+  }));
+  BOOST_TEST(direct_command_value == 61);
+  BOOST_TEST(::opcua::services::writeValue(client, command_value_id,
+                                           ::opcua::Variant(std::int32_t{61}))
+                 .isGood());
+  BOOST_REQUIRE(waitUntil([&] {
+    return complete.command.read(direct_command_value) == RTT::NewData;
+  }));
+  BOOST_TEST(direct_command_value == 61);
+  const auto command_read =
+      ::opcua::services::readValue(client, command_value_id);
+  BOOST_REQUIRE(!command_read);
+  BOOST_TEST(command_read.code() == UA_STATUSCODE_BADNOTREADABLE);
+
+  BOOST_TEST(complete.feedback.write(std::int32_t{81}) == RTT::WriteSuccess);
+  BOOST_TEST(complete.feedback.write(std::int32_t{82}) == RTT::WriteSuccess);
+  BOOST_TEST(complete.feedback.write(std::int32_t{84}) == RTT::WriteSuccess);
+  const auto feedback_value_id =
+      modelNodeId(namespace_index, {"components", "CompleteMapping", "ports",
+                                    "Feedback", "value"});
+  const auto direct_feedback =
+      ::opcua::services::readValue(client, feedback_value_id);
+  BOOST_REQUIRE(direct_feedback);
+  BOOST_TEST(direct_feedback.value().to<std::int32_t>() == 84);
   client.disconnect();
 
   auto complete_proxy = RTT::opcua::TaskContextProxy::create(
@@ -589,7 +695,6 @@ BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
   RTT::InputPort<std::int32_t> feedback_sink("FeedbackSink");
   BOOST_REQUIRE(remote_feedback->createConnection(
       feedback_sink, RTT::ConnPolicy::data(RTT::ConnPolicy::LOCK_FREE, false)));
-  BOOST_TEST(complete.feedback.write(std::int32_t{84}) == RTT::WriteSuccess);
   std::int32_t feedback_value = 0;
   BOOST_REQUIRE(waitUntil(
       [&] { return feedback_sink.read(feedback_value) == RTT::NewData; }));
