@@ -39,7 +39,7 @@ IF ( BUILD_DEPLOYMENT )
           SOVERSION ${OCL_SOVERSION}
           DEFINE_SYMBOL OCL_DLL_EXPORT)
         orocos_install_headers(OpcUaDeploymentComponent.hpp INSTALL include/orocos/ocl)
-        TARGET_INCLUDE_DIRECTORIES(orocos-ocl-deployment-opcua SYSTEM PRIVATE
+        TARGET_INCLUDE_DIRECTORIES(orocos-ocl-deployment-opcua SYSTEM BEFORE PRIVATE
           ${RTT_OPCUA_INCLUDE_DIRS})
         TARGET_COMPILE_OPTIONS(orocos-ocl-deployment-opcua PRIVATE
           ${RTT_OPCUA_CFLAGS_OTHER})
@@ -67,7 +67,7 @@ IF ( BUILD_DEPLOYMENT )
         find_package(open62541pp 0.21.2 CONFIG REQUIRED)
         add_executable(ocl_opcua_deployment_test tests/opcua_deployment_test.cpp)
         orocos_configure_executable(ocl_opcua_deployment_test)
-        target_include_directories(ocl_opcua_deployment_test SYSTEM PRIVATE
+        target_include_directories(ocl_opcua_deployment_test SYSTEM BEFORE PRIVATE
           ${RTT_OPCUA_INCLUDE_DIRS})
         target_compile_options(ocl_opcua_deployment_test PRIVATE
           ${RTT_OPCUA_CFLAGS_OTHER})
@@ -79,7 +79,12 @@ IF ( BUILD_DEPLOYMENT )
           orocos-ocl-deployment-opcua open62541pp::open62541pp ${RTT_OPCUA_LDFLAGS}
           ${OROCOS-RTT_TYPEKIT_LIBRARIES})
         foreach(case IN ITEMS
-            explicit_start_publishes_only_deployer
+            endpoint_start_publishes_no_components
+            explicit_complete_deployer_publication
+            explicit_selected_deployer_publication
+            selected_peer_publication_is_sparse
+            selected_peer_publication_reports_diagnostics_atomically
+            selected_publication_is_idempotent_and_rejects_conflicts
             strict_publication_is_static_and_idempotent
             server_metadata_does_not_auto_publish
             failed_start_freezes_registry_and_can_retry

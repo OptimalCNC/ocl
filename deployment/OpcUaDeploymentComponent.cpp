@@ -30,6 +30,18 @@ std::vector<std::string> diagnosticMessages(
   return messages;
 }
 
+std::vector<std::string> diagnosticMessages(
+    const std::vector<RTT::opcua::PublicationDiagnostic> &diagnostics) {
+  std::vector<std::string> messages;
+  messages.reserve(diagnostics.size());
+  std::transform(diagnostics.begin(), diagnostics.end(),
+                 std::back_inserter(messages),
+                 [](const RTT::opcua::PublicationDiagnostic &diagnostic) {
+                   return diagnostic.message();
+                 });
+  return messages;
+}
+
 } // namespace
 
 class OpcUaDeploymentComponent::Impl {
@@ -56,7 +68,6 @@ public:
   RTT::opcua::Server server;
   std::unique_ptr<RTT::opcua::ObjectModel> model;
   std::map<std::string, RTT::TaskContext *, std::less<>> published;
-  std::map<std::string, std::vector<std::string>, std::less<>> diagnostics;
   std::map<std::string, RemotePeer> remote_peers;
   mutable std::mutex mutex;
   State state{State::created};
@@ -87,6 +98,12 @@ OpcUaDeploymentComponent::OpcUaDeploymentComponent(
                      this, RTT::ClientThread)
       .doc("Returns the most recent OPC UA deployment error.");
   opcua
+      ->addOperation("publicationDiagnostics",
+                     &OpcUaDeploymentComponent::publicationDiagnostics, this,
+                     RTT::ClientThread)
+      .doc("Returns structured diagnostics from a rejected publication.")
+      .arg("component", "RTT component name.");
+  opcua
       ->addOperation("unsupportedResources",
                      &OpcUaDeploymentComponent::unsupportedResources, this,
                      RTT::ClientThread)
@@ -98,6 +115,13 @@ OpcUaDeploymentComponent::OpcUaDeploymentComponent(
                      RTT::ClientThread)
       .doc("Publishes one local RTT component on the running endpoint.")
       .arg("component", "Local RTT component name.");
+  opcua
+      ->addOperation("publishComponentSelected",
+                     &OpcUaDeploymentComponent::publishComponentSelected, this,
+                     RTT::ClientThread)
+      .doc("Publishes selected resources of one local RTT component.")
+      .arg("component", "Local RTT component name.")
+      .arg("selectors", "OPC UA publication selectors.");
 }
 
 OpcUaDeploymentComponent::~OpcUaDeploymentComponent() {
@@ -166,9 +190,22 @@ std::vector<std::string> OpcUaDeploymentComponent::unsupportedResources(
     return {};
   }
   std::lock_guard<std::mutex> lock(impl_->mutex);
-  const auto found = impl_->diagnostics.find(component_name);
-  return found == impl_->diagnostics.end() ? std::vector<std::string>{}
-                                           : found->second;
+  return impl_->model
+             ? diagnosticMessages(
+                   impl_->model->unsupportedResources(component_name))
+             : std::vector<std::string>{};
+}
+
+std::vector<std::string> OpcUaDeploymentComponent::publicationDiagnostics(
+    const std::string &component_name) const {
+  if (!impl_) {
+    return {};
+  }
+  std::lock_guard<std::mutex> lock(impl_->mutex);
+  return impl_->model
+             ? diagnosticMessages(
+                   impl_->model->publicationDiagnostics(component_name))
+             : std::vector<std::string>{};
 }
 
 bool OpcUaDeploymentComponent::startOpcUa() {
@@ -225,18 +262,6 @@ bool OpcUaDeploymentComponent::startOpcUa() {
   try {
     candidate = std::make_unique<RTT::opcua::ObjectModel>(
         impl_->server, impl_->options.object_model);
-    std::vector<RTT::opcua::UnsupportedResource> diagnostics;
-    if (!candidate->publishComponent(*this, &error, &diagnostics)) {
-      impl_->diagnostics.insert_or_assign(getName(),
-                                          diagnosticMessages(diagnostics));
-      impl_->server.stop();
-      candidate.reset();
-      return fail_start(error.empty() ? "failed to publish OPC UA deployer"
-                                      : std::move(error));
-    }
-
-    impl_->published.insert_or_assign(getName(), this);
-    impl_->diagnostics.erase(getName());
     impl_->model = std::move(candidate);
     impl_->state = Impl::State::running;
     impl_->last_error.clear();
@@ -254,14 +279,29 @@ bool OpcUaDeploymentComponent::startOpcUa() {
 
 bool OpcUaDeploymentComponent::publishComponent(
     const std::string &component_name) {
+  return publishComponentImpl(component_name, nullptr);
+}
+
+bool OpcUaDeploymentComponent::publishComponentSelected(
+    const std::string &component_name,
+    const std::vector<std::string> &selectors) {
+  return publishComponentImpl(component_name, &selectors);
+}
+
+bool OpcUaDeploymentComponent::publishComponentImpl(
+    const std::string &component_name,
+    const std::vector<std::string> *selectors) {
   if (!impl_) {
     return false;
   }
+  const char *operation =
+      selectors == nullptr
+          ? "OpcUaDeploymentComponent::publishComponent"
+          : "OpcUaDeploymentComponent::publishComponentSelected";
   std::lock_guard<std::mutex> lock(impl_->mutex);
   if (impl_->state != Impl::State::running || !impl_->model) {
     impl_->last_error = "OPC UA server is not running";
-    RTT::Logger::log().logf(RTT::Logger::Error,
-                            "OpcUaDeploymentComponent::publishComponent", "%s",
+    RTT::Logger::log().logf(RTT::Logger::Error, operation, "%s",
                             impl_->last_error.c_str());
     return false;
   }
@@ -270,49 +310,34 @@ bool OpcUaDeploymentComponent::publishComponent(
       component_name == getName() ? this : getPeer(component_name);
   if (component == nullptr) {
     impl_->last_error = "no such local RTT component: " + component_name;
-    RTT::Logger::log().logf(RTT::Logger::Error,
-                            "OpcUaDeploymentComponent::publishComponent", "%s",
+    RTT::Logger::log().logf(RTT::Logger::Error, operation, "%s",
                             impl_->last_error.c_str());
     return false;
   }
   if (dynamic_cast<RTT::opcua::TaskContextProxy *>(component) != nullptr) {
     impl_->last_error =
         "refusing to publish remote OPC UA proxy: " + component_name;
-    RTT::Logger::log().logf(RTT::Logger::Error,
-                            "OpcUaDeploymentComponent::publishComponent", "%s",
+    RTT::Logger::log().logf(RTT::Logger::Error, operation, "%s",
                             impl_->last_error.c_str());
     return false;
   }
-  const auto found = impl_->published.find(component_name);
-  if (found != impl_->published.end()) {
-    if (found->second != component) {
-      impl_->last_error =
-          "another RTT component instance is already published as: " +
-          component_name;
-      RTT::Logger::log().logf(RTT::Logger::Error,
-                              "OpcUaDeploymentComponent::publishComponent",
-                              "%s", impl_->last_error.c_str());
-      return false;
-    }
-    impl_->last_error.clear();
-    return true;
-  }
 
-  std::vector<RTT::opcua::UnsupportedResource> diagnostics;
   std::string error;
-  if (!impl_->model->publishComponent(*component, &error, &diagnostics)) {
-    impl_->diagnostics.insert_or_assign(component_name,
-                                        diagnosticMessages(diagnostics));
-    impl_->last_error =
-        error.empty() ? "failed to publish RTT component" : std::move(error);
-    RTT::Logger::log().logf(RTT::Logger::Error,
-                            "OpcUaDeploymentComponent::publishComponent", "%s",
+  const bool published =
+      selectors == nullptr
+          ? impl_->model->publishComponent(*component, &error)
+          : impl_->model->publishComponentSelected(*component, *selectors,
+                                                   &error);
+  if (!published) {
+    impl_->last_error = error.empty()
+                            ? "failed to publish RTT component"
+                            : std::move(error);
+    RTT::Logger::log().logf(RTT::Logger::Error, operation, "%s",
                             impl_->last_error.c_str());
     return false;
   }
 
-  impl_->published.emplace(component_name, component);
-  impl_->diagnostics.erase(component_name);
+  impl_->published.insert_or_assign(component_name, component);
   impl_->last_error.clear();
   return true;
 }

@@ -35,6 +35,11 @@ public:
   std::string opcUaEndpointUrl() const;
   std::string opcUaLastError() const;
   bool publishComponent(const std::string &component_name);
+  bool publishComponentSelected(
+      const std::string &component_name,
+      const std::vector<std::string> &selectors);
+  std::vector<std::string>
+  publicationDiagnostics(const std::string &component_name) const;
   std::vector<std::string>
   unsupportedResources(const std::string &component_name) const;
 
@@ -53,6 +58,9 @@ private:
   class Impl;
   std::unique_ptr<Impl> impl_;
 
+  bool publishComponentImpl(
+      const std::string &component_name,
+      const std::vector<std::string> *selectors);
   bool fail(const char *operation, std::string error) const;
 };
 

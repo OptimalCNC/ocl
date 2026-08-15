@@ -429,12 +429,19 @@ std::vector<std::string> operationNames(RTT::Service::shared_ptr service) {
 }
 
 const std::vector<std::string> kExpectedOpcUaOperations{
-    "endpointUrl",      "isRunning", "lastError",
-    "publishComponent", "start",     "unsupportedResources"};
+    "endpointUrl",
+    "isRunning",
+    "lastError",
+    "publicationDiagnostics",
+    "publishComponent",
+    "publishComponentSelected",
+    "start",
+    "unsupportedResources",
+};
 
 } // namespace
 
-BOOST_AUTO_TEST_CASE(explicit_start_publishes_only_deployer) {
+BOOST_AUTO_TEST_CASE(endpoint_start_publishes_no_components) {
   loadRttTypes();
   EchoTask local("LocalEcho");
   OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
@@ -452,14 +459,24 @@ BOOST_AUTO_TEST_CASE(explicit_start_publishes_only_deployer) {
   BOOST_TEST(deployer.opcUaIsRunning());
   BOOST_TEST(deployer.opcUaLastError().empty());
 
+  ::opcua::Client client;
+  client.connect(deployer.opcUaEndpointUrl());
+  const std::uint16_t namespace_index = namespaceIndex(client);
+  requireMissingNode(
+      client,
+      modelNodeId(namespace_index, {"components", deployer.getName()}));
+  requireMissingNode(client,
+                     modelNodeId(namespace_index,
+                                 {"components", local.getName()}));
+  client.disconnect();
+
   std::string error;
   auto deployer_proxy = RTT::opcua::TaskContextProxy::create(
       deployer.opcUaEndpointUrl(), deployer.getName(), {}, &error);
-  BOOST_REQUIRE_MESSAGE(deployer_proxy != nullptr, error);
-  RTT::Service::shared_ptr remote_opcua = deployer_proxy->provides("opcua");
-  BOOST_REQUIRE(remote_opcua != nullptr);
-  BOOST_TEST(operationNames(remote_opcua) == kExpectedOpcUaOperations);
+  BOOST_TEST(deployer_proxy == nullptr);
+  BOOST_TEST(!error.empty());
 
+  error.clear();
   auto local_proxy = RTT::opcua::TaskContextProxy::create(
       deployer.opcUaEndpointUrl(), local.getName(), {}, &error);
   BOOST_TEST(local_proxy == nullptr);
@@ -471,6 +488,192 @@ BOOST_AUTO_TEST_CASE(explicit_start_publishes_only_deployer) {
   BOOST_TEST(deployer.startOpcUa());
   BOOST_TEST(deployer.opcUaLastError().empty());
   BOOST_TEST(deployer.opcUaEndpointUrl() == endpoint);
+}
+
+BOOST_AUTO_TEST_CASE(explicit_complete_deployer_publication) {
+  loadRttTypes();
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  BOOST_REQUIRE(deployer.startOpcUa());
+  BOOST_REQUIRE(deployer.publishComponent(deployer.getName()));
+  BOOST_TEST(deployer.publicationDiagnostics(deployer.getName()).empty());
+  BOOST_TEST(deployer.unsupportedResources(deployer.getName()).empty());
+
+  std::string error;
+  auto proxy = RTT::opcua::TaskContextProxy::create(
+      deployer.opcUaEndpointUrl(), deployer.getName(), {}, &error);
+  BOOST_REQUIRE_MESSAGE(proxy != nullptr, error);
+  RTT::Service::shared_ptr remote_opcua = proxy->provides("opcua");
+  BOOST_REQUIRE(remote_opcua != nullptr);
+  BOOST_TEST(operationNames(remote_opcua) == kExpectedOpcUaOperations);
+}
+
+BOOST_AUTO_TEST_CASE(explicit_selected_deployer_publication) {
+  loadRttTypes();
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  RTT::Service::shared_ptr local_opcua = deployer.provides("opcua");
+  BOOST_REQUIRE(local_opcua != nullptr);
+  BOOST_REQUIRE(local_opcua->getOperation("publishComponentSelected") !=
+                nullptr);
+  BOOST_REQUIRE(local_opcua->getOperation("publicationDiagnostics") != nullptr);
+
+  BOOST_REQUIRE(deployer.startOpcUa());
+  BOOST_REQUIRE(deployer.publishComponentSelected(
+      deployer.getName(), {"services/opcua/**"}));
+  BOOST_TEST(deployer.publicationDiagnostics(deployer.getName()).empty());
+
+  std::string error;
+  auto proxy = RTT::opcua::TaskContextProxy::create(
+      deployer.opcUaEndpointUrl(), deployer.getName(), {}, &error);
+  BOOST_REQUIRE_MESSAGE(proxy != nullptr, error);
+  RTT::Service::shared_ptr remote_opcua = proxy->provides("opcua");
+  BOOST_REQUIRE(remote_opcua != nullptr);
+  BOOST_TEST(operationNames(remote_opcua) == kExpectedOpcUaOperations);
+}
+
+BOOST_AUTO_TEST_CASE(selected_peer_publication_is_sparse) {
+  loadRttTypes();
+  EchoTask selected("SelectedEcho");
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  BOOST_REQUIRE(deployer.addPeer(&selected));
+  BOOST_REQUIRE(deployer.startOpcUa());
+  BOOST_REQUIRE(deployer.publishComponentSelected(selected.getName(),
+                                                  {"operations/echo"}));
+
+  std::string error;
+  auto proxy = RTT::opcua::TaskContextProxy::create(
+      deployer.opcUaEndpointUrl(), selected.getName(), {}, &error);
+  BOOST_REQUIRE_MESSAGE(proxy != nullptr, error);
+  RTT::OperationCaller<std::int32_t(std::int32_t)> echo =
+      proxy->getOperation("echo");
+  BOOST_REQUIRE(echo.ready());
+  BOOST_TEST(echo(42) == 42);
+  BOOST_TEST(proxy->provides()->getProperty("Gain") == nullptr);
+
+  ::opcua::Client client;
+  client.connect(deployer.opcUaEndpointUrl());
+  const std::uint16_t namespace_index = namespaceIndex(client);
+  requireMissingNode(client,
+                     modelNodeId(namespace_index,
+                                 {"components", selected.getName(),
+                                  "properties", "Gain"}));
+}
+
+BOOST_AUTO_TEST_CASE(selected_peer_publication_reports_diagnostics_atomically) {
+  loadRttTypes(true);
+  EchoTask healthy("HealthyEcho");
+  UnsupportedTask rejected;
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  BOOST_REQUIRE(deployer.addPeer(&healthy));
+  BOOST_REQUIRE(deployer.addPeer(&rejected));
+  BOOST_REQUIRE(deployer.startOpcUa());
+  BOOST_REQUIRE(deployer.publishComponentSelected(healthy.getName(),
+                                                  {"operations/echo"}));
+
+  std::string error;
+  auto healthy_proxy = RTT::opcua::TaskContextProxy::create(
+      deployer.opcUaEndpointUrl(), healthy.getName(), {}, &error);
+  BOOST_REQUIRE_MESSAGE(healthy_proxy != nullptr, error);
+  RTT::OperationCaller<std::int32_t(std::int32_t)> echo =
+      healthy_proxy->getOperation("echo");
+  BOOST_REQUIRE(echo.ready());
+
+  BOOST_TEST(!deployer.publishComponentSelected(
+      rejected.getName(), {"properties//Value", "properties/Missing"}));
+  BOOST_TEST(deployer.opcUaIsRunning());
+  BOOST_TEST(deployer.opcUaLastError() ==
+             "selective OPC UA publication rejected component "
+             "'UnsupportedPeer' with 2 diagnostic(s)");
+  const std::vector<std::string> expected_selector_diagnostics{
+      "OPC UA publication: component 'UnsupportedPeer' rejected selector "
+      "'properties//Value': selector contains an empty segment.",
+      "OPC UA publication: component 'UnsupportedPeer' selector "
+      "'properties/Missing' matched no RTT resource.",
+  };
+  BOOST_TEST(deployer.publicationDiagnostics(rejected.getName()) ==
+             expected_selector_diagnostics);
+  BOOST_TEST(deployer.unsupportedResources(rejected.getName()).empty());
+  BOOST_TEST(echo(21) == 21);
+
+  ::opcua::Client client;
+  client.connect(deployer.opcUaEndpointUrl());
+  const std::uint16_t namespace_index = namespaceIndex(client);
+  requireMissingNode(
+      client,
+      modelNodeId(namespace_index, {"components", rejected.getName()}));
+  client.disconnect();
+
+  BOOST_TEST(!deployer.publishComponentSelected(rejected.getName(),
+                                                {"properties/Value"}));
+  const std::vector<std::string> expected_publication_diagnostics{
+      "OPC UA publication: component 'UnsupportedPeer' rejected resource "
+      "'properties/Value': property uses RTT type "
+      "'/test/OclUnsupportedValue' which has no registered OPC UA protocol.",
+  };
+  const std::vector<std::string> expected_legacy_diagnostics{
+      "OPC UA: component 'UnsupportedPeer' rejected property 'Value' because "
+      "RTT type '/test/OclUnsupportedValue' has no registered OPC UA "
+      "protocol.",
+  };
+  BOOST_TEST(deployer.publicationDiagnostics(rejected.getName()) ==
+             expected_publication_diagnostics);
+  BOOST_TEST(deployer.unsupportedResources(rejected.getName()) ==
+             expected_legacy_diagnostics);
+  BOOST_TEST(deployer.opcUaIsRunning());
+  BOOST_TEST(echo(84) == 84);
+}
+
+BOOST_AUTO_TEST_CASE(selected_publication_is_idempotent_and_rejects_conflicts) {
+  loadRttTypes();
+  EchoTask selected_first("SelectedFirst");
+  EchoTask full_first("FullFirst");
+  OCL::OpcUaDeploymentComponent deployer("Deployer", "", deploymentOptions());
+  BOOST_REQUIRE(deployer.addPeer(&selected_first));
+  BOOST_REQUIRE(deployer.addPeer(&full_first));
+  BOOST_REQUIRE(deployer.startOpcUa());
+
+  BOOST_REQUIRE(deployer.publishComponentSelected(selected_first.getName(),
+                                                  {"operations/echo"}));
+  BOOST_TEST(deployer.publishComponentSelected(
+      selected_first.getName(), {"operations/echo", "operations/echo"}));
+  BOOST_TEST(deployer.publicationDiagnostics(selected_first.getName()).empty());
+
+  BOOST_TEST(!deployer.publishComponent(selected_first.getName()));
+  const std::vector<std::string> expected_mode_conflict{
+      "OPC UA publication: component 'SelectedFirst' conflicts with its "
+      "existing publication: publication mode differs from the first "
+      "successful publication.",
+  };
+  BOOST_TEST(deployer.publicationDiagnostics(selected_first.getName()) ==
+             expected_mode_conflict);
+  BOOST_TEST(deployer.opcUaLastError() ==
+             "RTT component publication conflict for 'SelectedFirst': "
+             "publication mode differs from the first successful publication");
+
+  BOOST_TEST(deployer.publishComponentSelected(selected_first.getName(),
+                                               {"operations/echo"}));
+  BOOST_TEST(deployer.publicationDiagnostics(selected_first.getName()).empty());
+  BOOST_TEST(deployer.opcUaLastError().empty());
+
+  BOOST_TEST(!deployer.publishComponentSelected(selected_first.getName(),
+                                                {"properties/Gain"}));
+  const std::vector<std::string> expected_selection_conflict{
+      "OPC UA publication: component 'SelectedFirst' conflicts with its "
+      "existing publication: selection resolves to a different effective "
+      "resource set.",
+  };
+  BOOST_TEST(deployer.publicationDiagnostics(selected_first.getName()) ==
+             expected_selection_conflict);
+
+  BOOST_REQUIRE(deployer.publishComponent(full_first.getName()));
+  BOOST_TEST(!deployer.publishComponentSelected(full_first.getName(),
+                                                {"operations/echo"}));
+  const std::vector<std::string> expected_reverse_mode_conflict{
+      "OPC UA publication: component 'FullFirst' conflicts with its existing "
+      "publication: publication mode differs from the first successful "
+      "publication.",
+  };
+  BOOST_TEST(deployer.publicationDiagnostics(full_first.getName()) ==
+             expected_reverse_mode_conflict);
 }
 
 BOOST_AUTO_TEST_CASE(strict_publication_is_static_and_idempotent) {
@@ -856,6 +1059,11 @@ BOOST_AUTO_TEST_CASE(remote_components_remain_aliased_client_peers) {
                                     remote.getName(), "RemoteAlias"));
   BOOST_TEST(deployer.synchronizeRemote("RemoteAlias"));
   BOOST_TEST(!deployer.publishComponent("RemoteAlias"));
+  BOOST_TEST(!deployer.publishComponentSelected("RemoteAlias",
+                                                {"operations/echo"}));
+  BOOST_TEST(deployer.opcUaLastError() ==
+             "refusing to publish remote OPC UA proxy: RemoteAlias");
+  BOOST_TEST(deployer.publicationDiagnostics("RemoteAlias").empty());
   BOOST_REQUIRE(deployer.disconnectRemote("RemoteAlias"));
   BOOST_TEST(deployer.getPeer("RemoteAlias") == nullptr);
   BOOST_TEST(!deployer.disconnectRemote("RemoteAlias"));
@@ -876,7 +1084,8 @@ BOOST_AUTO_TEST_CASE(published_component_unload_is_rejected) {
   RTT::TaskContext *const managed = deployer.getPeer("ManagedEcho");
   BOOST_REQUIRE(managed != nullptr);
   BOOST_REQUIRE(deployer.startOpcUa());
-  BOOST_REQUIRE(deployer.publishComponent("ManagedEcho"));
+  BOOST_REQUIRE(deployer.publishComponentSelected("ManagedEcho",
+                                                  {"operations/echo"}));
 
   std::string error;
   auto proxy = RTT::opcua::TaskContextProxy::create(deployer.opcUaEndpointUrl(),
