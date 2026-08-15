@@ -74,12 +74,9 @@ int main(int argc, char** argv)
 
 #ifdef OCL_OPCUA_DEPLOYER
     OCL::OpcUaDeploymentOptions opcuaDeploymentOptions;
+    opcuaDeploymentOptions.server.bind_address = "0.0.0.0";
     po::options_description opcuaOptions("OPC UA options");
     opcuaOptions.add_options()
-        ("opcua-address",
-         po::value<std::string>(&opcuaDeploymentOptions.server.bind_address)
-             ->default_value(opcuaDeploymentOptions.server.bind_address),
-         "Loopback address to bind (127.0.0.1 or ::1)")
         ("opcua-port",
          po::value<std::uint16_t>(&opcuaDeploymentOptions.server.port)
              ->default_value(opcuaDeploymentOptions.server.port),

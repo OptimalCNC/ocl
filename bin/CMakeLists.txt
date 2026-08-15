@@ -68,6 +68,12 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
       ${RTT_OPCUA_LDFLAGS} ${EXTRA_LIBRARIES})
 
     IF(BUILD_TESTING)
+      add_test(NAME deployer_opcua_cli_address_rejected
+        COMMAND $<TARGET_FILE:deployer-opcua>
+          --opcua-address 127.0.0.1 --check)
+      set_tests_properties(deployer_opcua_cli_address_rejected PROPERTIES
+        WILL_FAIL TRUE)
+
       IF(NOT "${OROCOS_TARGET}" STREQUAL "xenomai")
         add_test(NAME ctaskbrowser_opcua_help
           COMMAND $<TARGET_FILE:ctaskbrowser-opcua> --help)
