@@ -44,11 +44,14 @@ IF ( BUILD_TASKBROWSER )
 
     # Readline support:
     IF (READLINE AND NOT NO_GPL)
-      # MSVC builds link statically with the readline.lib file
+      # Select the import definition used by the vcpkg readline-win32 port.
       if (MSVC)
-	# Should this flag be set for mingw too ??
-	MESSAGE("Taskbrowser NOTE: you need to have a static readline build from a readline MSVC solution !")
-	ADD_DEFINITIONS( /DREADLINE_STATIC )
+	if(DEFINED VCPKG_TARGET_TRIPLET AND NOT VCPKG_TARGET_TRIPLET MATCHES "-static")
+	  ADD_DEFINITIONS( /DUSE_READLINE_DLL )
+	else()
+	  MESSAGE("Taskbrowser NOTE: you need to have a static readline build from a readline MSVC solution !")
+	  ADD_DEFINITIONS( /DREADLINE_STATIC )
+	endif()
       endif()
 
       # readline only depends on curses on unixes, not on mingw/msvc

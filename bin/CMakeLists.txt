@@ -50,10 +50,10 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
     target_link_libraries(deployer-opcua
       ${OROCOS-RTT_LIBRARIES} orocos-ocl-taskbrowser
       orocos-ocl-deployment-opcua ${Boost_PROGRAM_OPTIONS_LIBRARY}
-      ${RTT_OPCUA_LDFLAGS} ${EXTRA_LIBRARIES})
+      PkgConfig::RTT_OPCUA ${EXTRA_LIBRARIES})
 
     orocos_executable(ctaskbrowser-opcua ctaskbrowser-opcua.cpp)
-    target_compile_definitions(ctaskbrowser-opcua PRIVATE RTT_STATIC)
+    target_compile_definitions(ctaskbrowser-opcua PRIVATE RTT_STATIC RTT_EXT_IMPL=)
     target_include_directories(ctaskbrowser-opcua SYSTEM PRIVATE
       ${RTT_OPCUA_INCLUDE_DIRS})
     target_compile_options(ctaskbrowser-opcua PRIVATE
@@ -65,7 +65,7 @@ IF (BUILD_TASKBROWSER AND BUILD_DEPLOYMENT AND OCL_OPCUA_FOUND)
     target_link_libraries(ctaskbrowser-opcua ${EXTRA_DEPS})
     target_link_libraries(ctaskbrowser-opcua
       ${OROCOS-RTT_LIBRARIES} orocos-ocl-taskbrowser
-      ${RTT_OPCUA_LDFLAGS} ${EXTRA_LIBRARIES})
+      PkgConfig::RTT_OPCUA ${EXTRA_LIBRARIES})
 
     IF(BUILD_TESTING)
       add_test(NAME deployer_opcua_cli_address_rejected

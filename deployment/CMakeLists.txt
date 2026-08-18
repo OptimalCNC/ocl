@@ -48,7 +48,7 @@ IF ( BUILD_DEPLOYMENT )
             -Wall -Wextra -Wpedantic -Werror)
         ENDIF()
         TARGET_LINK_LIBRARIES(orocos-ocl-deployment-opcua
-          orocos-ocl-deployment ${RTT_OPCUA_LDFLAGS})
+          orocos-ocl-deployment PkgConfig::RTT_OPCUA)
     ENDIF(OCL_OPCUA_FOUND)
     
     IF(OCL_OPCUA_FOUND)
@@ -76,7 +76,7 @@ IF ( BUILD_DEPLOYMENT )
             -Wall -Wextra -Wpedantic -Werror)
         ENDIF()
         target_link_libraries(ocl_opcua_deployment_test
-          orocos-ocl-deployment-opcua open62541pp::open62541pp ${RTT_OPCUA_LDFLAGS}
+          orocos-ocl-deployment-opcua open62541pp::open62541pp PkgConfig::RTT_OPCUA
           ${OROCOS-RTT_TYPEKIT_LIBRARIES})
         foreach(case IN ITEMS
             endpoint_start_publishes_no_components
