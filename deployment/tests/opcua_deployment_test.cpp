@@ -14,6 +14,8 @@
 #include <rtt/base/OutputPortInterface.hpp>
 #include <rtt/deployment/ComponentLoader.hpp>
 #include <rtt/internal/DataSources.hpp>
+#include <rtt/internal/GlobalService.hpp>
+#include <rtt/plugin/PluginLoader.hpp>
 #include <rtt/opcua/port_direction.hpp>
 #include <rtt/opcua/datatype_registry.hpp>
 #include <rtt/opcua/node_id.hpp>
@@ -36,12 +38,15 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
 #include <limits>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -438,6 +443,68 @@ const std::vector<std::string> kExpectedOpcUaOperations{
     "start",
     "unsupportedResources",
 };
+
+class LifecycleProbe final : public RTT::Service,
+                             public OCL::DeploymentServiceLifecycle {
+public:
+  LifecycleProbe(OCL::DeploymentComponent &owner, const std::string &name)
+      : RTT::Service(name, &owner) {}
+  bool componentLoaded(RTT::TaskContext *component) override {
+    loaded.push_back(component->getName());
+    return !reject_load;
+  }
+  bool componentCanUnload(RTT::TaskContext *) override { return true; }
+  void componentUnloaded(RTT::TaskContext *component) override {
+    std::erase(loaded, component->getName());
+  }
+  void beginDeploymentShutdown() noexcept override { began.store(true); }
+  void finishDeploymentShutdown() noexcept override { finished.store(true); }
+
+  std::vector<std::string> loaded;
+  bool reject_load{false};
+  std::atomic_bool began{false};
+  std::atomic_bool finished{false};
+};
+
+class HookOverrideDeployer final : public OCL::DeploymentComponent {
+protected:
+  bool componentLoaded(RTT::TaskContext *) override { return true; }
+  bool componentCanUnload(RTT::TaskContext *) override { return true; }
+};
+
+struct HeldInvocation {
+  std::mutex mutex;
+  std::condition_variable condition;
+  bool released{false};
+  std::atomic_bool entered{false};
+  std::atomic_bool completed{false};
+  std::atomic_bool destroyed{false};
+
+  void release() {
+    std::lock_guard<std::mutex> lock(mutex);
+    released = true;
+    condition.notify_all();
+  }
+};
+
+class HeldTask final : public RTT::TaskContext {
+public:
+  explicit HeldTask(const std::string &name) : RTT::TaskContext(name) {
+    provides()->addSynchronousOperation("hold", &HeldTask::hold, this);
+  }
+  ~HeldTask() override { invocation->destroyed.store(true); }
+  bool hold() {
+    std::unique_lock<std::mutex> lock(invocation->mutex);
+    invocation->entered.store(true);
+    const bool released = invocation->condition.wait_for(
+        lock, std::chrono::seconds(5), [&] { return invocation->released; });
+    invocation->completed.store(released);
+    return released;
+  }
+  std::shared_ptr<HeldInvocation> invocation{std::make_shared<HeldInvocation>()};
+};
+
+RTT::TaskContext *createHeldTask(std::string name) { return new HeldTask(name); }
 
 } // namespace
 
@@ -1102,4 +1169,176 @@ BOOST_AUTO_TEST_CASE(published_component_unload_is_rejected) {
       proxy->getOperation("echo");
   BOOST_REQUIRE(echo.ready());
   BOOST_TEST(echo(21) == 21);
+}
+
+BOOST_AUTO_TEST_CASE(plugin_is_component_owned_and_rejects_duplicate_loads) {
+  auto loader = RTT::plugin::PluginLoader::Instance();
+  BOOST_REQUIRE(loader->loadLibrary(OCL_TEST_OPCUA_PLUGIN));
+  BOOST_TEST(!RTT::internal::GlobalService::Instance()->hasService("opcua"));
+  BOOST_TEST(!loader->loadService("opcua", nullptr));
+  BOOST_TEST(!RTT::internal::GlobalService::Instance()->hasService("opcua"));
+  RTT::TaskContext other("Other");
+  BOOST_TEST(!loader->loadService("opcua", &other));
+  BOOST_TEST(!other.provides()->hasService("opcua"));
+
+  OCL::DeploymentComponent deployer;
+  BOOST_REQUIRE(deployer.loadService("Deployer", "opcua"));
+  auto service = deployer.provides()->getService("opcua");
+  auto *opcua = dynamic_cast<OCL::OpcUaDeploymentService *>(service.get());
+  BOOST_REQUIRE(opcua);
+  BOOST_TEST(service->getOwner() == &deployer);
+  BOOST_TEST(operationNames(service) == kExpectedOpcUaOperations);
+  BOOST_TEST(opcua->opcUaEndpointUrl() == "opc.tcp://0.0.0.0:4840/rtt");
+  BOOST_TEST(!opcua->opcUaIsRunning());
+  BOOST_TEST(!deployer.loadService("Deployer", "opcua"));
+  BOOST_TEST(!loader->loadService("opcua", &deployer));
+  BOOST_TEST(deployer.provides()->getService("opcua").get() == service.get());
+
+  OCL::OpcUaDeploymentComponent compatibility("Compatibility", "", deploymentOptions());
+  BOOST_REQUIRE(compatibility.startOpcUa());
+  const auto original = compatibility.provides()->getService("opcua");
+  const auto endpoint = compatibility.opcUaEndpointUrl();
+  BOOST_TEST(!compatibility.loadService("Compatibility", "opcua"));
+  BOOST_TEST(!loader->loadService("opcua", &compatibility));
+  BOOST_TEST(compatibility.provides()->getService("opcua").get() == original.get());
+  BOOST_TEST(compatibility.opcUaIsRunning());
+  BOOST_TEST(compatibility.opcUaEndpointUrl() == endpoint);
+}
+
+BOOST_AUTO_TEST_CASE(ordinary_deployer_preserves_publication_and_unload_veto) {
+  loadRttTypes();
+  FactoryRegistration factory("TestEchoTask", &createEchoTask);
+  HookOverrideDeployer deployer;
+  BOOST_REQUIRE(deployer.loadComponent("Before", "TestEchoTask"));
+  auto service = OCL::OpcUaDeploymentService::attach(deployer, deploymentOptions());
+  auto *opcua = dynamic_cast<OCL::OpcUaDeploymentService *>(service.get());
+  BOOST_REQUIRE(opcua);
+  BOOST_REQUIRE(deployer.loadComponent("After", "TestEchoTask"));
+  RTT::OperationCaller<bool()> start = service->getOperation("start");
+  BOOST_REQUIRE(start.ready());
+  BOOST_REQUIRE(start());
+
+  ::opcua::Client client;
+  client.connect(opcua->opcUaEndpointUrl());
+  const auto ns = namespaceIndex(client);
+  requireMissingNode(client, modelNodeId(ns, {"components", "Before"}));
+  requireMissingNode(client, modelNodeId(ns, {"components", "After"}));
+  BOOST_REQUIRE(opcua->publishComponent("Before"));
+  BOOST_REQUIRE(opcua->publishComponentSelected("After", {"operations/echo"}));
+  BOOST_TEST(!deployer.unloadComponent("Before"));
+  BOOST_TEST(!deployer.unloadComponent("After"));
+  std::string error;
+  auto proxy = RTT::opcua::TaskContextProxy::create(
+      opcua->opcUaEndpointUrl(), "After", {}, &error);
+  BOOST_REQUIRE_MESSAGE(proxy, error);
+  RTT::OperationCaller<std::int32_t(std::int32_t)> echo = proxy->getOperation("echo");
+  BOOST_REQUIRE(echo.ready());
+  BOOST_TEST(echo(42) == 42);
+  client.disconnect();
+  proxy.reset();
+  deployer.prepareDeploymentShutdown();
+  BOOST_TEST(!opcua->opcUaIsRunning());
+  BOOST_TEST(!start());
+  BOOST_TEST(!deployer.loadComponent("TooLate", "TestEchoTask"));
+  BOOST_REQUIRE(deployer.unloadComponent("Before"));
+  BOOST_REQUIRE(deployer.unloadComponent("After"));
+  deployer.prepareDeploymentShutdown();
+}
+
+BOOST_AUTO_TEST_CASE(lifecycle_attachment_seeds_inventory_and_rolls_back_rejection) {
+  FactoryRegistration factory("TestEchoTask", &createEchoTask);
+  OCL::DeploymentComponent deployer;
+  BOOST_REQUIRE(deployer.loadComponent("Before", "TestEchoTask"));
+  RTT::Service::shared_ptr first(new LifecycleProbe(deployer, "first"));
+  auto &probe = static_cast<LifecycleProbe &>(*first);
+  BOOST_REQUIRE(deployer.attachDeploymentService("first", [&] { return first; }));
+  BOOST_TEST(probe.loaded == std::vector<std::string>{"Before"});
+  RTT::Service::shared_ptr second(new LifecycleProbe(deployer, "second"));
+  auto &rejecting = static_cast<LifecycleProbe &>(*second);
+  rejecting.reject_load = true;
+  BOOST_TEST(!deployer.attachDeploymentService("second", [&] { return second; }));
+  BOOST_TEST(!deployer.provides()->hasService("second"));
+  BOOST_TEST(rejecting.loaded.empty());
+  rejecting.reject_load = false;
+  BOOST_REQUIRE(deployer.attachDeploymentService("second", [&] { return second; }));
+  rejecting.reject_load = true;
+  BOOST_TEST(!deployer.loadComponent("Rejected", "TestEchoTask"));
+  BOOST_TEST(deployer.getPeer("Rejected") == nullptr);
+  BOOST_TEST(probe.loaded == std::vector<std::string>{"Before"});
+  BOOST_TEST(rejecting.loaded == std::vector<std::string>{"Before"});
+  rejecting.reject_load = false;
+  BOOST_REQUIRE(deployer.loadComponent("Rejected", "TestEchoTask"));
+  BOOST_REQUIRE(deployer.unloadComponent("Rejected"));
+  BOOST_REQUIRE(deployer.unloadComponent("Before"));
+  BOOST_TEST(probe.loaded.empty());
+  BOOST_TEST(rejecting.loaded.empty());
+}
+
+BOOST_AUTO_TEST_CASE(shutdown_closes_all_services_before_draining_held_operation) {
+  loadRttTypes();
+  FactoryRegistration factory("HeldTask", &createHeldTask);
+  auto deployer = std::make_unique<OCL::DeploymentComponent>();
+  auto options = deploymentOptions();
+  options.object_model.operation_timeout = std::chrono::milliseconds(30);
+  auto service = OCL::OpcUaDeploymentService::attach(*deployer, options);
+  auto *opcua = dynamic_cast<OCL::OpcUaDeploymentService *>(service.get());
+  BOOST_REQUIRE(opcua);
+  RTT::Service::shared_ptr observer(new LifecycleProbe(*deployer, "observer"));
+  auto &probe = static_cast<LifecycleProbe &>(*observer);
+  BOOST_REQUIRE(deployer->attachDeploymentService("observer", [&] { return observer; }));
+  BOOST_REQUIRE(deployer->loadComponent("Held", "HeldTask"));
+  auto invocation = dynamic_cast<HeldTask *>(deployer->getPeer("Held"))->invocation;
+  BOOST_REQUIRE(opcua->startOpcUa());
+  BOOST_REQUIRE(opcua->publishComponentSelected("Held", {"operations/hold"}));
+  ::opcua::Client client;
+  client.connect(opcua->opcUaEndpointUrl());
+  const auto ns = namespaceIndex(client);
+  const auto result = ::opcua::services::call(
+      client, modelNodeId(ns, {"components", "Held", "operations"}),
+      modelNodeId(ns, {"components", "Held", "operations", "hold"}), {});
+  BOOST_TEST(result.statusCode() == UA_STATUSCODE_BADTIMEOUT);
+  BOOST_TEST(invocation->entered.load());
+  client.disconnect();
+
+  bool all_began = false;
+  bool observer_waiting = false;
+  bool component_alive = false;
+  // Keep RTT destruction on the RTT-initialized main thread (also on Xenomai).
+  std::jthread release([&] {
+    all_began = waitUntil([&] { return probe.began.load(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    observer_waiting = !probe.finished.load();
+    component_alive = !invocation->destroyed.load();
+    invocation->release();
+  });
+  deployer.reset();
+  release.join();
+
+  BOOST_TEST(all_began);
+  BOOST_TEST(observer_waiting);
+  BOOST_TEST(component_alive);
+  BOOST_TEST(invocation->completed.load());
+  BOOST_TEST(invocation->destroyed.load());
+  BOOST_TEST(probe.finished.load());
+  BOOST_TEST(!opcua->opcUaIsRunning());
+}
+
+BOOST_AUTO_TEST_CASE(destructor_stops_service_when_auto_unload_is_disabled) {
+  loadRttTypes();
+  FactoryRegistration factory("TestEchoTask", &createEchoTask);
+  auto deployer = std::make_unique<OCL::DeploymentComponent>();
+  BOOST_REQUIRE(deployer->properties()->getPropertyType<bool>("AutoUnload"));
+  deployer->properties()->getPropertyType<bool>("AutoUnload")->set(false);
+  BOOST_REQUIRE(deployer->loadComponent("Retained", "TestEchoTask"));
+  auto *component = deployer->getPeer("Retained");
+  auto service = OCL::OpcUaDeploymentService::attach(*deployer, deploymentOptions());
+  auto *opcua = dynamic_cast<OCL::OpcUaDeploymentService *>(service.get());
+  BOOST_REQUIRE(opcua);
+  BOOST_REQUIRE(opcua->startOpcUa());
+  BOOST_REQUIRE(opcua->publishComponent("Retained"));
+  deployer.reset();
+  BOOST_TEST(!opcua->opcUaIsRunning());
+  BOOST_TEST(!opcua->startOpcUa());
+  BOOST_TEST(component->getName() == "Retained");
+  RTT::ComponentLoader::Instance()->unloadComponent(component);
 }

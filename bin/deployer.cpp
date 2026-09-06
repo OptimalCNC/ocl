@@ -214,6 +214,7 @@ int main(int argc, char** argv)
                 dc.shutdownDeployment();
             }
 #endif
+            dc.prepareDeploymentShutdown();
         } catch (const std::exception& error) {
             Logger::log().logf(Logger::Error,
 #ifdef OCL_OPCUA_DEPLOYER

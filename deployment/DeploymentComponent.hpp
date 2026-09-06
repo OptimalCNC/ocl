@@ -39,6 +39,10 @@
 #include <vector>
 #include <map>
 #include <rtt/marsh/PropertyDemarshaller.hpp>
+#include <atomic>
+#include <functional>
+#include <mutex>
+#include "DeploymentServiceLifecycle.hpp"
 
 // Suppress warnings in ocl/Component.hpp
 #ifndef OCL_STATIC
@@ -267,6 +271,15 @@ namespace OCL
          * components are left as-is.
          */
         ~DeploymentComponent();
+
+        // C++ coordination only; these are deliberately not RTT operations.
+        RTT::Service::shared_ptr attachDeploymentService(
+            const std::string& name,
+            const std::function<RTT::Service::shared_ptr()>& create);
+        std::unique_lock<std::recursive_mutex> lockDeployment() const;
+        bool deploymentShuttingDown() const noexcept;
+        bool markManagedProxy(RTT::TaskContext* component);
+        void prepareDeploymentShutdown() noexcept;
 
         RTT::TaskContext* myGetPeer(std::string name) {return compmap[ name ].instance; }
 
@@ -1020,6 +1033,14 @@ namespace OCL
          * @return false if this function could not install a signal handler.
          */
         bool waitForInterrupt();
+
+    private:
+        mutable std::recursive_mutex deploymentMutex;
+        std::mutex deploymentServicesMutex;
+        std::vector<RTT::Service::shared_ptr> deploymentServices;
+        std::atomic_bool deploymentClosing{false};
+        std::atomic_bool deploymentDrained{false};
+        std::once_flag deploymentShutdownOnce;
 
     };
 

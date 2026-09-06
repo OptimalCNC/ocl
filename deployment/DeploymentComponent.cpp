@@ -284,8 +284,98 @@ namespace OCL
 
     void DeploymentComponent::componentUnloaded(TaskContext*) { }
 
+    std::unique_lock<std::recursive_mutex> DeploymentComponent::lockDeployment() const
+    {
+        return std::unique_lock<std::recursive_mutex>(deploymentMutex);
+    }
+
+    bool DeploymentComponent::deploymentShuttingDown() const noexcept
+    {
+        return deploymentClosing.load();
+    }
+
+    RTT::Service::shared_ptr DeploymentComponent::attachDeploymentService(
+        const std::string& name,
+        const std::function<RTT::Service::shared_ptr()>& create)
+    {
+        auto lock = lockDeployment();
+        if (deploymentClosing.load() || provides()->hasService(name))
+            return {};
+        auto service = create();
+        auto* lifecycle = dynamic_cast<DeploymentServiceLifecycle*>(service.get());
+        if (!lifecycle || service->getName() != name || service->getOwner() != this)
+            return {};
+
+        std::vector<TaskContext*> seeded;
+        seeded.reserve(compmap.size());
+        try {
+            for (const auto& entry : compmap) {
+                TaskContext* component = entry.second.instance;
+                if (!component)
+                    continue;
+                seeded.push_back(component);
+                if (!lifecycle->componentLoaded(component)) {
+                    for (auto* previous : seeded)
+                        lifecycle->componentUnloaded(previous);
+                    return {};
+                }
+            }
+            std::lock_guard<std::mutex> registry_lock(deploymentServicesMutex);
+            if (!deploymentClosing.load()) {
+                deploymentServices.push_back(service);
+                try {
+                    if (provides()->addService(service))
+                        return service;
+                } catch (...) {
+                    deploymentServices.pop_back();
+                    throw;
+                }
+                deploymentServices.pop_back();
+            }
+        } catch (...) {
+            for (auto* previous : seeded)
+                lifecycle->componentUnloaded(previous);
+            throw;
+        }
+        for (auto* previous : seeded)
+            lifecycle->componentUnloaded(previous);
+        return {};
+    }
+
+    bool DeploymentComponent::markManagedProxy(TaskContext* component)
+    {
+        auto lock = lockDeployment();
+        for (auto& entry : compmap) {
+            if (entry.second.instance == component) {
+                entry.second.proxy = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void DeploymentComponent::prepareDeploymentShutdown() noexcept
+    {
+        std::call_once(deploymentShutdownOnce, [this] {
+            std::vector<RTT::Service::shared_ptr> participants;
+            {
+                std::lock_guard<std::mutex> lock(deploymentServicesMutex);
+                deploymentClosing.store(true);
+                participants = deploymentServices;
+            }
+            for (const auto& service : participants)
+                dynamic_cast<DeploymentServiceLifecycle&>(*service).beginDeploymentShutdown();
+            for (const auto& service : participants)
+                dynamic_cast<DeploymentServiceLifecycle&>(*service).finishDeploymentShutdown();
+            // An in-flight load must finish before ordinary component teardown.
+            auto lock = lockDeployment();
+            deploymentDrained.store(true);
+        });
+    }
+
     DeploymentComponent::~DeploymentComponent()
     {
+      prepareDeploymentShutdown();
       // Should we unload all loaded components here ?
       if ( autoUnload.get() ) {
           kickOutAll();
@@ -944,6 +1034,9 @@ namespace OCL
     bool DeploymentComponent::loadComponentsInGroup(const std::string& configurationfile,
                                                     const int group)
     {
+        auto deployment_lock = lockDeployment();
+        if (deploymentClosing.load())
+            return false;
         RTT::PropertyBag from_file;
         Logger::log().logf(Logger::Info, "DeploymentComponent::loadComponents",
                            "Loading '%s' in group %d.", configurationfile.c_str(), group);
@@ -2005,6 +2098,7 @@ namespace OCL
 
     bool DeploymentComponent::unloadComponentsGroup(const int group)
     {
+        auto deployment_lock = lockDeployment();
         Logger::log().logf(Logger::Info, "DeploymentComponent::unloadComponentsGroup",
                            "Unloading group %d", group);
         // 2. Disconnect and destroy all components in group
@@ -2060,6 +2154,9 @@ namespace OCL
     }
 
     bool DeploymentComponent::loadService(const std::string& name, const std::string& type) {
+        auto deployment_lock = lockDeployment();
+        if (deploymentClosing.load())
+            return false;
         TaskContext* peer = 0;
         if ((name == getName()) || (name == "this"))
             peer = this;
@@ -2072,13 +2169,17 @@ namespace OCL
         // note: in case the service is not exposed as a 'service' object with the same name,
         // we can not detect double loads. So this check is flaky.
         if (peer->provides()->hasService(type))
-            return true;
+            return dynamic_cast<DeploymentServiceLifecycle*>(
+                peer->provides()->getService(type).get()) == nullptr;
         return PluginLoader::Instance()->loadService(type, peer);
     }
 
     // or type is a shared library or it is a class type.
     bool DeploymentComponent::loadComponent(const std::string& name, const std::string& type)
     {
+        auto deployment_lock = lockDeployment();
+        if (deploymentClosing.load())
+            return false;
         if ( type == "RTT::PropertyBag" )
             return false; // It should be present as peer.
 
@@ -2099,11 +2200,36 @@ namespace OCL
         compmap[name].instance = instance;
         comps.push_back(name);
 
-        if (!this->componentLoaded( instance ) ) {
+        std::vector<DeploymentServiceLifecycle*> notified;
+        bool accepted = false;
+        try {
+            accepted = this->componentLoaded(instance);
+            if (accepted) {
+                for (const auto& service : deploymentServices) {
+                    auto* lifecycle = dynamic_cast<DeploymentServiceLifecycle*>(service.get());
+                    notified.push_back(lifecycle);
+                    if (!lifecycle->componentLoaded(instance)) {
+                        accepted = false;
+                        break;
+                    }
+                }
+            }
+        } catch (...) {
+            for (auto* lifecycle : notified)
+                lifecycle->componentUnloaded(instance);
+            compmap[name].instance = 0;
+            comps.remove(name);
+            ComponentLoader::Instance()->unloadComponent(instance);
+            throw;
+        }
+        if (!accepted) {
             Logger::log().logf(Logger::Error, "DeploymentComponent::loadComponent",
                                "This deployer type refused to connect to %s: aborting !",
                                instance->getName().c_str());
             compmap[name].instance = 0;
+            comps.remove(name);
+            for (auto* lifecycle : notified)
+                lifecycle->componentUnloaded(instance);
             ComponentLoader::Instance()->unloadComponent( instance );
             return false;
         }
@@ -2124,6 +2250,9 @@ namespace OCL
      */
     bool DeploymentComponent::unloadComponentImpl( CompMap::iterator cit )
     {
+        auto deployment_lock = lockDeployment();
+        if (deploymentClosing.load() && !deploymentDrained.load())
+            return false;
         bool valid = true;
         ComponentData* it = &(cit->second);
         std::string  name = cit->first;
@@ -2133,6 +2262,12 @@ namespace OCL
                 if (!componentCanUnload(it->instance)) {
                     return false;
                 }
+                for (const auto& service : deploymentServices) {
+                    if (!dynamic_cast<DeploymentServiceLifecycle&>(*service).componentCanUnload(it->instance))
+                        return false;
+                }
+                for (const auto& service : deploymentServices)
+                    dynamic_cast<DeploymentServiceLifecycle&>(*service).componentUnloaded(it->instance);
                 if (!it->proxy ) {
                     // allow subclasses to do cleanup too.
                     componentUnloaded( it->instance );
@@ -2193,6 +2328,7 @@ namespace OCL
 
     bool DeploymentComponent::unloadComponent(const std::string& name)
     {
+        auto deployment_lock = lockDeployment();
         CompMap::iterator it;
             // no such peer: try looking for the map name
             if ( compmap.count( name ) == 0 || compmap[name].loaded == false ) {

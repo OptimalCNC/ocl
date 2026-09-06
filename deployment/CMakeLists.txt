@@ -7,7 +7,7 @@ IF ( BUILD_DEPLOYMENT )
   find_package(Boost 1.36 REQUIRED filesystem system)
 
     # This gathers all the .cpp files into the variable 'SRCS'
-    SET( HPPS DeploymentComponent.hpp )
+    SET( HPPS DeploymentComponent.hpp DeploymentServiceLifecycle.hpp )
     SET( SRCS DeploymentComponent.cpp )
 
     # Add Lua support if BUILD_LUA_RTT is on
@@ -34,11 +34,13 @@ IF ( BUILD_DEPLOYMENT )
     ENDIF(OROCOS-RTT_CORBA_FOUND)
 
     IF (OCL_OPCUA_FOUND)
-        orocos_library(orocos-ocl-deployment-opcua OpcUaDeploymentComponent.cpp)
+        orocos_library(orocos-ocl-deployment-opcua
+          OpcUaDeploymentComponent.cpp OpcUaDeploymentService.cpp)
         SET_TARGET_PROPERTIES(orocos-ocl-deployment-opcua PROPERTIES
           SOVERSION ${OCL_SOVERSION}
           DEFINE_SYMBOL OCL_DLL_EXPORT)
-        orocos_install_headers(OpcUaDeploymentComponent.hpp INSTALL include/orocos/ocl)
+        orocos_install_headers(OpcUaDeploymentComponent.hpp OpcUaDeploymentService.hpp
+          INSTALL include/orocos/ocl)
         TARGET_INCLUDE_DIRECTORIES(orocos-ocl-deployment-opcua SYSTEM BEFORE PRIVATE
           ${RTT_OPCUA_INCLUDE_DIRS})
         TARGET_COMPILE_OPTIONS(orocos-ocl-deployment-opcua PRIVATE
@@ -49,6 +51,10 @@ IF ( BUILD_DEPLOYMENT )
         ENDIF()
         TARGET_LINK_LIBRARIES(orocos-ocl-deployment-opcua
           orocos-ocl-deployment PkgConfig::RTT_OPCUA)
+
+        orocos_plugin(opcua OpcUaServicePlugin.cpp)
+        TARGET_INCLUDE_DIRECTORIES(opcua SYSTEM BEFORE PRIVATE ${RTT_OPCUA_INCLUDE_DIRS})
+        TARGET_LINK_LIBRARIES(opcua orocos-ocl-deployment-opcua)
     ENDIF(OCL_OPCUA_FOUND)
     
     IF(OCL_OPCUA_FOUND)
@@ -66,6 +72,9 @@ IF ( BUILD_DEPLOYMENT )
       IF(OCL_OPCUA_FOUND)
         find_package(open62541pp 0.21.2 CONFIG REQUIRED)
         add_executable(ocl_opcua_deployment_test tests/opcua_deployment_test.cpp)
+        add_dependencies(ocl_opcua_deployment_test opcua)
+        target_compile_definitions(ocl_opcua_deployment_test PRIVATE
+          OCL_TEST_OPCUA_PLUGIN="$<TARGET_FILE:opcua>")
         orocos_configure_executable(ocl_opcua_deployment_test)
         target_include_directories(ocl_opcua_deployment_test SYSTEM BEFORE PRIVATE
           ${RTT_OPCUA_INCLUDE_DIRS})
@@ -89,10 +98,16 @@ IF ( BUILD_DEPLOYMENT )
             server_metadata_does_not_auto_publish
             failed_start_freezes_registry_and_can_retry
             remote_components_remain_aliased_client_peers
-            published_component_unload_is_rejected)
+            published_component_unload_is_rejected
+            plugin_is_component_owned_and_rejects_duplicate_loads
+            ordinary_deployer_preserves_publication_and_unload_veto
+            lifecycle_attachment_seeds_inventory_and_rolls_back_rejection
+            shutdown_closes_all_services_before_draining_held_operation
+            destructor_stops_service_when_auto_unload_is_disabled)
           add_test(
             NAME ocl_opcua_deployment_${case}
             COMMAND ocl_opcua_deployment_test --run_test=${case})
+          set_tests_properties(ocl_opcua_deployment_${case} PROPERTIES TIMEOUT 30)
         endforeach()
       ENDIF(OCL_OPCUA_FOUND)
     ENDIF(BUILD_TESTING)
