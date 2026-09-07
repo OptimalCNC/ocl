@@ -44,6 +44,20 @@ jobs:
         with:
           arch: x64
 
+      - name: Check out farbot
+        uses: actions/checkout@v6
+        with:
+          repository: liufang-robot/farbot
+          ref: 09fd406eef4778511e85b569e3e75cad3d5cf608
+          path: farbot
+
+      - name: Check out rtlog-cpp
+        uses: actions/checkout@v6
+        with:
+          repository: liufang-robot/rtlog-cpp
+          ref: 5842ca36c69ad4ba34321eda80891c832298f161
+          path: rtlog-cpp
+
       - name: Set up vcpkg
         shell: pwsh
         run: |
@@ -56,6 +70,7 @@ jobs:
           & "$env:CI_VCPKG_ROOT\vcpkg.exe" install `
             boost-assign:x64-windows `
             boost-filesystem:x64-windows `
+            boost-functional:x64-windows `
             boost-serialization:x64-windows `
             boost-thread:x64-windows `
             boost-uuid:x64-windows `
@@ -64,11 +79,34 @@ jobs:
             boost-test:x64-windows `
             libxml2:x64-windows
 
+      - name: Configure farbot
+        shell: pwsh
+        run: |
+          cmake -S farbot -B build-farbot -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_INSTALL_PREFIX="$env:INSTALL_PREFIX"
+
+      - name: Install farbot
+        shell: pwsh
+        run: cmake --build build-farbot --config Release --target INSTALL -- /m:4
+
+      - name: Configure rtlog-cpp
+        shell: pwsh
+        run: |
+          cmake -S rtlog-cpp -B build-rtlog -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_PREFIX_PATH="$env:INSTALL_PREFIX" `
+            -DCMAKE_INSTALL_PREFIX="$env:INSTALL_PREFIX" `
+            -DRTLOG_BUILD_TESTS=OFF
+
+      - name: Install rtlog-cpp
+        shell: pwsh
+        run: cmake --build build-rtlog --config Release --target INSTALL -- /m:4
+
       - name: Configure RTT
         shell: pwsh
         run: |
           cmake -S rtt -B "$env:RTT_BUILD_DIR" -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_TOOLCHAIN_FILE="$env:CI_VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_PREFIX_PATH="$env:INSTALL_PREFIX" `
             -DCMAKE_INSTALL_PREFIX="$env:INSTALL_PREFIX" `
             -DOROCOS_TARGET=win32 `
             -DENABLE_CORBA=OFF `

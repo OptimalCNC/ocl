@@ -2,22 +2,13 @@
 #define OCL_OPCUADEPLOYMENTCOMPONENT_HPP
 
 #include "DeploymentComponent.hpp"
-
-#include <rtt/opcua/object_model.hpp>
-#include <rtt/opcua/server_options.hpp>
-#include <rtt/opcua/task_context_proxy.hpp>
+#include "OpcUaDeploymentService.hpp"
 
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace OCL {
-
-struct OCL_API OpcUaDeploymentOptions {
-  RTT::opcua::ServerOptions server;
-  RTT::opcua::ObjectModelOptions object_model;
-  RTT::opcua::TaskContextProxyOptions proxy;
-};
 
 class OCL_API OpcUaDeploymentComponent : public DeploymentComponent {
 public:
@@ -55,13 +46,8 @@ protected:
   void componentUnloaded(RTT::TaskContext *component) override;
 
 private:
-  class Impl;
-  std::unique_ptr<Impl> impl_;
-
-  bool publishComponentImpl(
-      const std::string &component_name,
-      const std::vector<std::string> *selectors);
-  bool fail(const char *operation, std::string error) const;
+  RTT::Service::shared_ptr service_;
+  OpcUaDeploymentService &opcua() const;
 };
 
 } // namespace OCL
