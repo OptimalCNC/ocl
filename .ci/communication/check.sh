@@ -7,6 +7,9 @@ staging="$ci_directory/install"
 export CMAKE_PREFIX_PATH="$staging:${CMAKE_PREFIX_PATH:-}"
 export PKG_CONFIG_PATH="$staging/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 export LD_LIBRARY_PATH="$staging/lib:$staging/lib/orocos/gnulinux/ocl/types:${LD_LIBRARY_PATH:-}"
+# The released SDK may require a newer compatible libstdc++ runtime than the
+# compiler's private copy. Link to the runtime selected in this environment.
+export LDFLAGS="-L$CONDA_PREFIX/lib ${LDFLAGS:-}"
 
 cmake -S "$ci_directory/rtt_http" -B "$ci_directory/build-http" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$staging" \

@@ -17,12 +17,14 @@ jobs:
         os: [ubuntu-22.04, windows-2022]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.ci/communication/vcpkg-cache
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: liufang-robot/rtt_http
-          ref: cabbf58173e0c3254ba580540a801da956f11d79
+          ref: 5e739797f2b29198bb198aefe5ecc5e0ac52881a
           path: .ci/communication/rtt_http
           persist-credentials: false
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -42,14 +44,26 @@ jobs:
           ref: c5a15727ee70fddf0296f0d8aafc3f58916fefac
           path: .ci/communication/vcpkg
           persist-credentials: false
+      - uses: actions/cache/restore@v4
+        if: runner.os == 'Windows'
+        id: vcpkg-cache
+        with:
+          path: .ci/communication/vcpkg-cache
+          key: http-vcpkg-windows-2022-c5a15727ee70fddf0296f0d8aafc3f58916fefac-v1
       - name: Add HTTP dependencies at the released SDK baseline
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
           & ./.ci/communication/vcpkg/bootstrap-vcpkg.bat -disableMetrics
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./.ci/communication/vcpkg/vcpkg.exe install boost-json:x64-windows openssl:x64-windows
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/cache/save@v4
+        if: runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        with:
+          path: .ci/communication/vcpkg-cache
+          key: http-vcpkg-windows-2022-c5a15727ee70fddf0296f0d8aafc3f58916fefac-v1
       - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347
         with:
           pixi-version: v0.76.2
