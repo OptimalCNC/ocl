@@ -80,6 +80,20 @@ IF ( BUILD_DEPLOYMENT )
     orocos_generate_package(DEPENDS ${deployment_dependencies})
 
     IF(BUILD_TESTING)
+      # RTT identifies an explicitly loaded Windows DLL by its parent folder.
+      # Use the installed plugins/ layout for both test service modules.
+      foreach(service IN ITEMS http opcua)
+        if(TARGET ${service})
+          set_target_properties(${service} PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins")
+          foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+            set_target_properties(${service} PROPERTIES
+              LIBRARY_OUTPUT_DIRECTORY_${config} "${CMAKE_CURRENT_BINARY_DIR}/plugins"
+              RUNTIME_OUTPUT_DIRECTORY_${config} "${CMAKE_CURRENT_BINARY_DIR}/plugins")
+          endforeach()
+        endif()
+      endforeach()
       if(OCL_HTTP_FOUND)
         find_path(OCL_HTTP_TEST_HTTPLIB_INCLUDE_DIR httplib.h REQUIRED)
         add_executable(ocl_http_deployment_test tests/http_deployment_test.cpp)

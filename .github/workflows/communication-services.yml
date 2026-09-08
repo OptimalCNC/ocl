@@ -24,13 +24,13 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: liufang-robot/rtt_http
-          ref: 5e739797f2b29198bb198aefe5ecc5e0ac52881a
+          ref: 12f82044af9f8c98191e9fc44cef410b74feb468
           path: .ci/communication/rtt_http
           persist-credentials: false
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: liufang-robot/cpp-httplib
-          ref: da905e2a81514462e34444b092080e239d5e9d50
+          ref: ff2caa809b907ab59815725fbb0bb757475e2229
           path: .ci/communication/cpp-httplib
           persist-credentials: false
       - uses: ilammy/msvc-dev-cmd@v1
