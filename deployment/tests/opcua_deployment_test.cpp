@@ -1,3 +1,12 @@
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
 #define BOOST_TEST_MODULE ocl_opcua_deployment
 #include <boost/test/included/unit_test.hpp>
 
@@ -32,11 +41,6 @@
 #include <open62541pp/services/attribute_highlevel.hpp>
 #include <open62541pp/services/method.hpp>
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -60,9 +64,27 @@ BOOST_TEST_DONT_PRINT_LOG_VALUE(::opcua::ValueRank)
 
 namespace {
 
+#ifdef _WIN32
+using TestSocket = SOCKET;
+using TestSocklen = int;
+constexpr auto kInvalidSocket = INVALID_SOCKET;
+void closeTestSocket(TestSocket socket) { ::closesocket(socket); }
+#else
+using TestSocket = int;
+using TestSocklen = socklen_t;
+constexpr auto kInvalidSocket = -1;
+void closeTestSocket(TestSocket socket) { ::close(socket); }
+#endif
+
 class RttProcessFixture final {
 public:
   RttProcessFixture() {
+#ifdef _WIN32
+    WSADATA data{};
+    if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
+      throw std::runtime_error("failed to initialize test sockets");
+    }
+#endif
     auto &suite = boost::unit_test::framework::master_test_suite();
     if (__os_init(suite.argc, suite.argv) != 0) {
       throw std::runtime_error("failed to initialize RTT test process");
@@ -75,6 +97,9 @@ public:
     RTT::os::StartStopManager::Release();
 #else
     __os_exit();
+#endif
+#ifdef _WIN32
+    WSACleanup();
 #endif
   }
 
@@ -91,8 +116,8 @@ struct UnsupportedValue {
 constexpr std::string_view kUnsupportedTypeName = "/test/OclUnsupportedValue";
 
 std::uint16_t unusedLoopbackPort() {
-  const int socket_fd = ::socket(AF_INET, SOCK_STREAM, 0);
-  if (socket_fd < 0) {
+  const TestSocket socket_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  if (socket_fd == kInvalidSocket) {
     throw std::runtime_error("failed to create test socket");
   }
 
@@ -102,18 +127,18 @@ std::uint16_t unusedLoopbackPort() {
   address.sin_port = 0;
   if (::bind(socket_fd, reinterpret_cast<const sockaddr *>(&address),
              sizeof(address)) != 0) {
-    ::close(socket_fd);
+    closeTestSocket(socket_fd);
     throw std::runtime_error("failed to bind test socket");
   }
 
-  socklen_t size = sizeof(address);
+  TestSocklen size = sizeof(address);
   if (::getsockname(socket_fd, reinterpret_cast<sockaddr *>(&address), &size) !=
       0) {
-    ::close(socket_fd);
+    closeTestSocket(socket_fd);
     throw std::runtime_error("failed to inspect test socket");
   }
   const std::uint16_t port = ntohs(address.sin_port);
-  ::close(socket_fd);
+  closeTestSocket(socket_fd);
   return port;
 }
 
@@ -229,7 +254,7 @@ bool waitUntil(Predicate predicate,
 class OccupiedLoopbackPort final {
 public:
   OccupiedLoopbackPort() : socket_fd_(::socket(AF_INET, SOCK_STREAM, 0)) {
-    if (socket_fd_ < 0) {
+    if (socket_fd_ == kInvalidSocket) {
       throw std::runtime_error("failed to create occupied-port socket");
     }
 
@@ -244,7 +269,7 @@ public:
       throw std::runtime_error("failed to occupy loopback port");
     }
 
-    socklen_t size = sizeof(address);
+    TestSocklen size = sizeof(address);
     if (::getsockname(socket_fd_, reinterpret_cast<sockaddr *>(&address),
                       &size) != 0) {
       release();
@@ -261,14 +286,14 @@ public:
   std::uint16_t port() const noexcept { return port_; }
 
   void release() noexcept {
-    if (socket_fd_ >= 0) {
-      ::close(socket_fd_);
-      socket_fd_ = -1;
+    if (socket_fd_ != kInvalidSocket) {
+      closeTestSocket(socket_fd_);
+      socket_fd_ = kInvalidSocket;
     }
   }
 
 private:
-  int socket_fd_{-1};
+  TestSocket socket_fd_{kInvalidSocket};
   std::uint16_t port_{0U};
 };
 

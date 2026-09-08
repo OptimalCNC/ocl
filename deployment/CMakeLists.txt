@@ -124,6 +124,9 @@ IF ( BUILD_DEPLOYMENT )
         target_link_libraries(ocl_opcua_deployment_test
           orocos-ocl-deployment-opcua open62541pp::open62541pp PkgConfig::RTT_OPCUA
           ${OROCOS-RTT_TYPEKIT_LIBRARIES})
+        if(WIN32)
+          target_link_libraries(ocl_opcua_deployment_test ws2_32)
+        endif()
         foreach(case IN ITEMS
             endpoint_start_publishes_no_components
             explicit_complete_deployer_publication
