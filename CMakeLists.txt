@@ -171,6 +171,18 @@ if(BUILD_OPCUA)
   endif()
 endif()
 
+option(BUILD_HTTP "Build optional component-owned HTTP deployment support" ON)
+set(OCL_HTTP_FOUND FALSE)
+if(BUILD_HTTP)
+  find_package(rtt_http CONFIG QUIET)
+  if(rtt_http_FOUND)
+    set(OCL_HTTP_FOUND TRUE)
+    message(STATUS "Found rtt_http for ${OROCOS_TARGET}")
+  else()
+    message(STATUS "rtt_http not found; HTTP deployment support is disabled")
+  endif()
+endif()
+
 ## Find Netcdf
 INCLUDE (${PROJ_SOURCE_DIR}/config/FindNetcdf.cmake)
 

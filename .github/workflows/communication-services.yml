@@ -1,0 +1,82 @@
+name: Communication services
+on:
+  pull_request:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: communication-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  deployment:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.ci/communication/vcpkg-cache
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: liufang-robot/rtt_http
+          ref: 12f82044af9f8c98191e9fc44cef410b74feb468
+          path: .ci/communication/rtt_http
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: liufang-robot/cpp-httplib
+          ref: ff2caa809b907ab59815725fbb0bb757475e2229
+          path: .ci/communication/cpp-httplib
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        if: runner.os == 'Windows'
+        with:
+          repository: microsoft/vcpkg
+          ref: c5a15727ee70fddf0296f0d8aafc3f58916fefac
+          path: .ci/communication/vcpkg
+          persist-credentials: false
+      - uses: actions/cache/restore@v4
+        if: runner.os == 'Windows'
+        id: vcpkg-cache
+        with:
+          path: .ci/communication/vcpkg-cache
+          key: http-vcpkg-windows-2022-c5a15727ee70fddf0296f0d8aafc3f58916fefac-v1
+      - name: Add HTTP dependencies at the released SDK baseline
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          & ./.ci/communication/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./.ci/communication/vcpkg/vcpkg.exe install boost-json:x64-windows openssl:x64-windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/cache/save@v4
+        if: runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        with:
+          path: .ci/communication/vcpkg-cache
+          key: http-vcpkg-windows-2022-c5a15727ee70fddf0296f0d8aafc3f58916fefac-v1
+      - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347
+        with:
+          pixi-version: v0.76.2
+          manifest-path: .ci/communication/pixi.toml
+          locked: false
+          cache: false
+      - name: Build and test HTTP and OPC UA deployment together
+        run: pixi run --manifest-path .ci/communication/pixi.toml check
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: failure()
+        with:
+          name: communication-diagnostics-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: |
+            .ci/communication/build-*/Testing/Temporary/*.log
+            .ci/communication/build-*/CMakeFiles/CMakeConfigureLog.yaml

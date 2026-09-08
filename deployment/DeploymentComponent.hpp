@@ -279,6 +279,7 @@ namespace OCL
         std::unique_lock<std::recursive_mutex> lockDeployment() const;
         bool deploymentShuttingDown() const noexcept;
         bool markManagedProxy(RTT::TaskContext* component);
+        bool isManagedProxy(const RTT::TaskContext* component) const;
         void prepareDeploymentShutdown() noexcept;
 
         RTT::TaskContext* myGetPeer(std::string name) {return compmap[ name ].instance; }
