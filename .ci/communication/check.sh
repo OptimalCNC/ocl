@@ -6,7 +6,7 @@ repository="$(cd -- "$ci_directory/../.." && pwd)"
 staging="$ci_directory/install"
 export CMAKE_PREFIX_PATH="$staging:${CMAKE_PREFIX_PATH:-}"
 export PKG_CONFIG_PATH="$staging/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-export LD_LIBRARY_PATH="$staging/lib:$staging/lib/orocos/gnulinux/ocl/types:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$staging/lib:$staging/lib/orocos/gnulinux/ocl/types:$CONDA_PREFIX/toolchain/lib/orocos/gnulinux/types:$CONDA_PREFIX/toolchain/lib/orocos/gnulinux/plugins:$CONDA_PREFIX/toolchain/lib/orocos/gnulinux/rtt_opcua/plugins:${LD_LIBRARY_PATH:-}"
 # The released SDK may require a newer compatible libstdc++ runtime than the
 # compiler's private copy. Link to the runtime selected in this environment.
 export LDFLAGS="-L$CONDA_PREFIX/lib ${LDFLAGS:-}"
