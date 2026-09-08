@@ -354,6 +354,16 @@ namespace OCL
         return false;
     }
 
+    bool DeploymentComponent::isManagedProxy(const TaskContext* component) const
+    {
+        auto lock = lockDeployment();
+        for (const auto& entry : compmap) {
+            if (entry.second.instance == component)
+                return entry.second.proxy;
+        }
+        return false;
+    }
+
     void DeploymentComponent::prepareDeploymentShutdown() noexcept
     {
         std::call_once(deploymentShutdownOnce, [this] {
