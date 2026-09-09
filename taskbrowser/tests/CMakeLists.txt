@@ -23,6 +23,11 @@ IF(BUILD_TESTING)
     ${OROCOS-RTT_TYPEKIT_LIBRARIES}
     orocos-ocl-taskbrowser
   )
+  if(WIN32)
+    # Boost.Test includes windows.h before RTT includes Winsock2.
+    target_compile_definitions(taskbrowser_value_renderer_test PRIVATE
+      WIN32_LEAN_AND_MEAN NOMINMAX)
+  endif()
   set_tests_properties(
     taskbrowser_value_renderer_test
     PROPERTIES
