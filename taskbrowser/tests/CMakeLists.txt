@@ -10,7 +10,9 @@ CMAKE_DEPENDENT_OPTION(
 IF(BUILD_TASKBROWSER_TEST)
   GLOBAL_ADD_TEST(taskb main.cpp)
   program_add_deps(taskb ${OROCOS-RTT_LIBRARIES} orocos-ocl-taskbrowser)
+ENDIF()
 
+IF(BUILD_TESTING)
   GLOBAL_ADD_TEST(
     taskbrowser_value_renderer_test
     structured_value_renderer_test.cpp

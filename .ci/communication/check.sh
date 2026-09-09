@@ -26,6 +26,8 @@ cmake --build "$ci_directory/build-ocl" --parallel 2
 cmake --install "$ci_directory/build-ocl"
 # Each protocol must register tests; optional dependency discovery cannot
 # silently turn this combined deployment gate into an OPC-UA-only build.
+ctest --test-dir "$ci_directory/build-ocl" -R '^taskbrowser_value_renderer_test$' \
+  --output-on-failure --no-tests=error
 ctest --test-dir "$ci_directory/build-ocl" -R '^ocl_http_deployment$' \
   --output-on-failure --no-tests=error
 ctest --test-dir "$ci_directory/build-ocl" -R '^ocl_opcua_deployment_' \
