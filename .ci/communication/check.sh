@@ -23,6 +23,7 @@ cmake -S "$repository" -B "$ci_directory/build-ocl" -G Ninja \
   -DBUILD_LUA_RTT=OFF -DBUILD_REPORTING_NETCDF=OFF -DBUILD_DOCS=OFF \
   -DOCL_HTTP_TEST_HTTPLIB_INCLUDE_DIR="$ci_directory/cpp-httplib"
 cmake --build "$ci_directory/build-ocl" --parallel 2
+cmake --build "$ci_directory/build-ocl" --parallel 2 --target taskbrowser_value_renderer_test
 cmake --install "$ci_directory/build-ocl"
 # Each protocol must register tests; optional dependency discovery cannot
 # silently turn this combined deployment gate into an OPC-UA-only build.
